@@ -1,8 +1,8 @@
 //! dev-kit
 
+use anyhow::anyhow;
 use clap::Parser;
 use std::path::PathBuf;
-use anyhow::anyhow;
 
 mod kit;
 
@@ -40,6 +40,14 @@ fn main() -> Result<()> {
                 }
             }
         }
+        Command::TimeNow { timezone, format } => {
+            let result = kit::get_time(
+                kit::TimeReq::Now,
+                timezone,
+                format.unwrap_or_default(),
+            )?;
+            println!("{}", result);
+        }
     }
     Ok(())
 }
@@ -74,6 +82,13 @@ enum Command {
         query: String,
         #[arg(short, long, help = "file to write output")]
         file: Option<PathBuf>,
+    },
+    #[clap(about = "get current time, alias now", alias = "now")]
+    TimeNow {
+        #[arg(long,short, help = "timezone, alias tz", alias = "tz")]
+        timezone: Option<chrono::FixedOffset>,
+        #[arg(long, short, help = "time format")]
+        format: Option<kit::TimeFormat>,
     },
 }
 
