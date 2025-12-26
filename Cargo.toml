@@ -20,5 +20,6 @@ serde_json = { version = "1.0" }
 percent-encoding = "2.3"
 jsonpath-rust = "1.0"
 chrono = "0.4"
+which = "8.0.0"
 [features]
 

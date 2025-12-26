@@ -1,79 +1,18 @@
+use super::Json;
 use anyhow::anyhow;
-use derive_more::Display;
 use itertools::Itertools;
 use jsonpath_rust::JsonPath;
 use std::fs;
 use std::io::Read;
 use std::path::PathBuf;
 use std::str::FromStr;
-
-#[derive(clap::Subcommand)]
-pub enum JsonCommand {
-    #[clap(about = "json beautify, alias 'format'", alias = "format")]
-    Beauty {
-        #[arg(help = "json-string, json-file-path", default_value = "-")]
-        json: Json,
-        #[arg(short, long, help = "file to write output")]
-        file: Option<PathBuf>,
-    },
-    #[clap(about = "json query, alias 'search'", alias = "search")]
-    Query {
-        #[arg(help = "json-string, json-file-path", default_value = "-")]
-        json: Json,
-        #[arg(short, long, help = "json path to extract")]
-        query: String,
-        #[arg(short, long, help = "file to write output")]
-        file: Option<PathBuf>,
-    },
-}
-
-impl super::Command for JsonCommand {
-    fn run(&self) -> crate::Result<()> {
-        match self {
-            JsonCommand::Beauty { json, file } => {
-                let result = json.beautify()?;
-                if let Some(file) = file {
-                    fs::write(&file, result).map_err(|err|
-                        anyhow!("write to {} failed, {}", file.display(), err)
-                    )?;
-                    println!("write to {}", file.display())
-                } else {
-                    println!("{result}");
-                }
-                Ok(())
-            }
-            JsonCommand::Query { json, query, file } => {
-                let result = json.query(query)?;
-                if let Some(file) = file {
-                    let content = result.join("\n");
-                    fs::write(&file, content)?;
-                    println!("write to {}", file.display())
-                } else {
-                    for row in result {
-                        println!("{}", row);
-                    }
-                }
-                Ok(())
-            }
-        }
-    }
-}
-
-#[derive(Debug, Clone, Display)]
-pub enum Json {
-    #[display("{_0}")]
-    String(String),
-    #[display("{}", _0.display())]
-    Path(PathBuf),
-}
-
 impl Json {
-    fn beautify(&self) -> crate::Result<String> {
+    pub fn beautify(&self) -> crate::Result<String> {
         let json = serde_json::Value::try_from(self)?;
         Ok(serde_json::to_string_pretty(&json)?)
     }
 
-    fn query(&self, query: &str) -> crate::Result<Vec<String>> {
+    pub fn query(&self, query: &str) -> crate::Result<Vec<String>> {
         let json = serde_json::Value::try_from(self)?;
         let query_result = json.query(query).map_err(|err| anyhow!(r#"Invalid json path: {}"#, err))?;
         let arr = query_result.iter().flat_map(|&it|
@@ -82,7 +21,19 @@ impl Json {
             )).collect_vec();
         Ok(arr)
     }
+
+    pub fn diff_prepare(&self, query: Option<&str>) -> crate::Result<String> {
+        let json = serde_json::Value::try_from(self)?;
+        if let Some(query) = query {
+            let array = json.query(query)?;
+            let pretty = serde_json::to_string_pretty(&array)?;
+            Ok(pretty)
+        } else {
+            Ok(serde_json::to_string_pretty(&json)?)
+        }
+    }
 }
+
 impl TryFrom<&Json> for serde_json::Value {
     type Error = anyhow::Error;
 
