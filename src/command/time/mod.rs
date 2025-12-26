@@ -1,6 +1,6 @@
 use anyhow::anyhow;
 use chrono::{FixedOffset, Utc};
-use derive_more::{Deref, Display, From};
+use derive_more::{Deref, Display, From, FromStr};
 use std::io::Read;
 use std::str::FromStr;
 
@@ -32,7 +32,7 @@ pub enum Time {
     StringTime(Timestring),
     Timestamp(Timestamp),
 }
-#[derive(Debug, Clone, Display, Deref, From)]
+#[derive(Debug, Clone, Display, Deref, From, FromStr)]
 #[display("{_0}")]
 pub struct Timestring(String);
 mod timestring_guess;
@@ -108,18 +108,17 @@ impl FromStr for Time {
     type Err = anyhow::Error;
 
     fn from_str(value: &str) -> Result<Self, Self::Err> {
-        let val = if value.eq("-") {
+        if value.eq("-") {
             let mut string = String::new();
             let _ = std::io::stdin().lock().read_to_string(&mut string)
                 .map_err(|err| anyhow!("read from stdin failed, {}", err))?;
-            string.trim().to_string()
+            Ok(Self::from_str(string.trim())?)
         } else {
-            value.to_string()
-        };
-        if let Ok(val) = value.parse::<i64>() {
-            Ok(Self::Timestamp(val.into()))
-        } else {
-            Ok(Self::StringTime(val.into()))
+            if let Ok(val) = value.parse::<i64>() {
+                Ok(Self::Timestamp(val.into()))
+            } else {
+                Ok(Self::StringTime(value.to_string().into()))
+            }
         }
     }
 }

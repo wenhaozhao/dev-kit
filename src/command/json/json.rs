@@ -5,6 +5,7 @@ use jsonpath_rust::JsonPath;
 use std::fs;
 use std::io::Read;
 use std::path::PathBuf;
+use std::process::Command;
 use std::str::FromStr;
 impl Json {
     pub fn beautify(&self) -> crate::Result<String> {
@@ -39,7 +40,7 @@ impl TryFrom<&Json> for serde_json::Value {
 
     fn try_from(input: &Json) -> Result<Self, Self::Error> {
         let json = match input {
-            Json::Stdin(input) | Json::String(input) => {
+            Json::Curl(input) | Json::String(input) => {
                 serde_json::from_str::<serde_json::Value>(&input).map_err(|err|
                     anyhow!(r#"
                     Invalid json format:
@@ -81,7 +82,25 @@ impl FromStr for Json {
             let mut string = String::new();
             let _ = std::io::stdin().lock().read_to_string(&mut string)
                 .map_err(|err| anyhow!("read from stdin failed, {}", err))?;
-            Ok(Json::Stdin(string))
+            Ok(Self::from_str(&string)?)
+        } else if value.starts_with("curl") {
+            let output = Command::new("sh")
+                .arg("-c")
+                .arg(value)
+                .output()
+                .map_err(|err| anyhow!(r#"
+failed to execute curl command: {}
+{}
+"#, err, value
+                ))?;
+            if output.status.success() {
+                let stdout = String::from_utf8(output.stdout)
+                    .map_err(|err| anyhow!("failed to parse curl output as UTF-8: {}", err))?;
+                Ok(Json::Curl(stdout))
+            } else {
+                let stderr = String::from_utf8_lossy(&output.stderr);
+                return Err(anyhow!("curl command failed: {}", stderr));
+            }
         } else if let Ok(url) = url::Url::parse(value) {
             return Ok(Json::Uri(url));
         } else {

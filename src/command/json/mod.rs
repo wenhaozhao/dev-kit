@@ -100,7 +100,8 @@ install {} command-line interface, see:
 #[derive(Debug, Clone, Display)]
 pub enum Json {
     #[display("{_0}")]
-    Stdin(String),
+    Curl(String),
+    #[display("{_0}")]
     Uri(url::Url),
     #[display("{}", _0.display())]
     Path(PathBuf),

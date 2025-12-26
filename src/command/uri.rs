@@ -56,11 +56,12 @@ impl FromStr for Uri {
             let mut string = String::new();
             let _ = std::io::stdin().lock().read_to_string(&mut string)
                 .map_err(|err| anyhow!("read from stdin failed, {}", err))?;
-            return Ok(Uri::String(string));
-        }
-        match url::Url::parse(&value) {
-            Ok(url) => Ok(Uri::Url(url)),
-            Err(_) => Ok(Uri::String(value.to_string())),
+            Ok(Self::from_str(&string)?)
+        } else {
+            match url::Url::parse(&value) {
+                Ok(url) => Ok(Uri::Url(url)),
+                Err(_) => Ok(Uri::String(value.to_string())),
+            }
         }
     }
 }
