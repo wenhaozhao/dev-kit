@@ -1,5 +1,5 @@
 use super::StringTime;
-use chrono::{naive, TimeZone};
+use chrono::TimeZone;
 use std::convert::TryFrom;
 
 impl TryFrom<&StringTime> for chrono::DateTime<chrono::Utc> {

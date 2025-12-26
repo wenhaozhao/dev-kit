@@ -1,17 +1,40 @@
 use anyhow::anyhow;
 use chrono::Utc;
 use derive_more::{Deref, Display, From, FromStr};
+use std::io::Read;
 use std::str::FromStr;
-
 
 #[derive(Debug, Clone)]
 pub enum InputTime {
     Now,
     Timestamp {
-        val: i64,
+        val: Timestamp,
         unit: TimeUnit,
     },
     StringTime(StringTime),
+}
+
+#[derive(Debug, Copy, Clone, Display, Deref, From)]
+#[display("{_0}")]
+pub struct Timestamp(i64);
+
+impl TryFrom<String> for Timestamp {
+    type Error = anyhow::Error;
+
+    fn try_from(value: String) -> Result<Self, Self::Error> {
+        let value = if value.eq("-") {
+            let mut string = String::new();
+            let _ = std::io::stdin().lock().read_to_string(&mut string)
+                .map_err(|err| anyhow!("read from stdin failed, {}", err))?;
+            string
+        } else {
+            value
+        };
+        let val = value.trim().parse::<i64>().map_err(|err|
+            anyhow!("Invalid timestamp: {}, {}", value, err)
+        )?;
+        Ok(Timestamp(val))
+    }
 }
 
 #[derive(Debug, Copy, Clone, Display, Default)]
@@ -36,10 +59,26 @@ impl FromStr for TimeUnit {
     }
 }
 
-#[derive(Debug, Clone, Display, From, FromStr, Deref)]
+#[derive(Debug, Clone, Display, Deref)]
 #[display("{_0}")]
 pub struct StringTime(String);
 mod string_time_parser;
+
+impl TryFrom<String> for StringTime {
+    type Error = anyhow::Error;
+
+    fn try_from(value: String) -> Result<Self, Self::Error> {
+        let value = if value.eq("-") {
+            let mut string = String::new();
+            let _ = std::io::stdin().lock().read_to_string(&mut string)
+                .map_err(|err| anyhow!("read from stdin failed, {}", err))?;
+            string
+        } else {
+            value
+        };
+        Ok(StringTime(value.trim().to_string()))
+    }
+}
 
 #[derive(Debug, Clone, Default)]
 pub enum TimeFormat {
@@ -81,8 +120,8 @@ pub fn time_convertor(
         InputTime::Timestamp { val, unit, } => {
             let timezone = timezone.unwrap_or(default_timezone);
             let time = match unit {
-                TimeUnit::Seconds => chrono::DateTime::from_timestamp(val, 0),
-                TimeUnit::Milliseconds => chrono::DateTime::from_timestamp_millis(val),
+                TimeUnit::Seconds => chrono::DateTime::from_timestamp(*val, 0),
+                TimeUnit::Milliseconds => chrono::DateTime::from_timestamp_millis(*val),
             }.ok_or(anyhow!("Invalid timestamp {}{}", val, unit))?.with_timezone(&timezone);
             match format_to {
                 TimeFormat::RFC3339 => time.to_rfc3339(),
@@ -91,10 +130,11 @@ pub fn time_convertor(
             }
         }
         InputTime::StringTime(val) => {
+            let timezone = timezone.unwrap_or(default_timezone);
             let time = chrono::DateTime::<Utc>::try_from(&val).map_err(|err| {
                 log::debug!("Failed to parse time string: {}, error: {}", val, err);
                 anyhow!("Invalid string time {val}")
-            })?;
+            })?.with_timezone(&timezone);
             match format_to {
                 TimeFormat::RFC3339 => time.to_rfc3339(),
                 TimeFormat::Timestamp => time.timestamp_millis().to_string(),

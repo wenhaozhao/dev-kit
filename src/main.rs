@@ -52,7 +52,7 @@ fn main() -> Result<()> {
             timestamp, unit, timezone, format,
         } => {
             let result = kit::time_convertor(
-                kit::InputTime::Timestamp { val: timestamp, unit:unit.unwrap_or_default() },
+                kit::InputTime::Timestamp { val: timestamp.try_into()?, unit: unit.unwrap_or_default() },
                 timezone,
                 format.unwrap_or_default(),
             )?;
@@ -62,7 +62,7 @@ fn main() -> Result<()> {
             timestring, timezone, format,
         } => {
             let result = kit::time_convertor(
-                kit::InputTime::StringTime(timestring),
+                kit::InputTime::StringTime(timestring.try_into()?),
                 timezone,
                 format.unwrap_or_default(),
             )?;
@@ -84,19 +84,19 @@ struct CLI {
 enum Command {
     #[clap(about = "decode uri component, alias du", alias = "du")]
     DecodeURI {
-        #[arg(help = "uri component to decode")]
+        #[arg(help = "uri component to decode, or default stdin with '-'", default_value = "-")]
         input: String
     },
     #[clap(about = "json beautify, alias jb", alias = "jb")]
     JsonBeautify {
-        #[arg(help = "json-string or json-file-path")]
+        #[arg(help = "json-string, json-file-path, or default stdin with '-'", default_value = "-")]
         input: String,
         #[arg(short, long, help = "file to write output")]
         file: Option<PathBuf>,
     },
     #[clap(about = "json extract, alias jq", alias = "jq")]
     JsonQuery {
-        #[arg(help = "json-string or json-file-path")]
+        #[arg(help = "json-string, json-file-path, or default stdin with '-'", default_value = "-")]
         input: String,
         #[arg(short, long, help = "json path to extract")]
         query: String,
@@ -112,8 +112,8 @@ enum Command {
     },
     #[clap(about = "parse timestamp, alias ts", alias = "ts")]
     TimestampParser {
-        #[arg(help = "timestamp to parse")]
-        timestamp: i64,
+        #[arg(help = "timestamp to parse, or default stdin with '-'", default_value = "-")]
+        timestamp: String,
         #[arg(short, long, help = "time unit, seconds(s) or milliseconds(ms, default)")]
         unit: Option<kit::TimeUnit>,
         #[arg(long, short, help = "timezone, alias tz, default to LOCAL", alias = "tz")]
@@ -123,8 +123,8 @@ enum Command {
     },
     #[clap(about = "parse timestring, alias tp", alias = "tp")]
     TimestringParser {
-        #[arg(help = "time string to parse, eg. 2023-01-01 12:00:00")]
-        timestring: kit::StringTime,
+        #[arg(help = "time string to parse, eg. 2023-01-01 12:00:00, or default stdin with '-'", default_value = "-")]
+        timestring: String,
         #[arg(long, short, help = "timezone, alias tz, default to LOCAL", alias = "tz")]
         timezone: Option<chrono::FixedOffset>,
         #[arg(long, short, help = "time format: rfc3339(default), timestamp(ts) or custom format")]

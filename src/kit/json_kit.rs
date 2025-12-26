@@ -3,6 +3,7 @@ use derive_more::Display;
 use itertools::Itertools;
 use jsonpath_rust::JsonPath;
 use std::fs;
+use std::io::Read;
 use std::path::PathBuf;
 
 #[derive(Debug, Clone, Display)]
@@ -17,6 +18,12 @@ impl TryFrom<String> for JsonInput {
     type Error = anyhow::Error;
 
     fn try_from(value: String) -> Result<Self, Self::Error> {
+        if value.eq("-") {
+            let mut string = String::new();
+            let _ = std::io::stdin().lock().read_to_string(&mut string)
+                .map_err(|err| anyhow!("read from stdin failed, {}", err))?;
+            return Ok(JsonInput::String(string));
+        }
         let path = PathBuf::from(&value);
         if fs::exists(&path).unwrap_or(false) {
             Ok(JsonInput::Path(path))
