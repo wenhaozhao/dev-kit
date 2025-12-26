@@ -39,7 +39,7 @@ impl TryFrom<&Json> for serde_json::Value {
 
     fn try_from(input: &Json) -> Result<Self, Self::Error> {
         let json = match input {
-            Json::String(input) => {
+            Json::Stdin(input) | Json::String(input) => {
                 serde_json::from_str::<serde_json::Value>(&input).map_err(|err|
                     anyhow!(r#"
                     Invalid json format:
@@ -54,6 +54,20 @@ impl TryFrom<&Json> for serde_json::Value {
                     {}"#, err)
                 )?
             }
+            Json::Uri(url) => {
+                let url = url.clone();
+                let rt = tokio::runtime::Builder::new_multi_thread()
+                    .worker_threads(1usize)
+                    .enable_io().build()?;
+                let text = futures::executor::block_on(async {
+                    let h = rt.spawn(async {
+                        let text = reqwest::get(url).await.map_err(|err| anyhow!(err))?.text().await.map_err(|err| anyhow!(err))?;
+                        Ok::<_, anyhow::Error>(text)
+                    });
+                    h.await
+                })??;
+                serde_json::from_str(&text)?
+            }
         };
         Ok(json)
     }
@@ -67,13 +81,16 @@ impl FromStr for Json {
             let mut string = String::new();
             let _ = std::io::stdin().lock().read_to_string(&mut string)
                 .map_err(|err| anyhow!("read from stdin failed, {}", err))?;
-            return Ok(Json::String(string));
-        }
-        let path = PathBuf::from_str(value)?;
-        if fs::exists(&path).unwrap_or(false) {
-            Ok(Json::Path(path))
+            Ok(Json::Stdin(string))
+        } else if let Ok(url) = url::Url::parse(value) {
+            return Ok(Json::Uri(url));
         } else {
-            Ok(Json::String(value.to_string()))
+            let path = PathBuf::from_str(value)?;
+            if fs::exists(&path).unwrap_or(false) {
+                Ok(Json::Path(path))
+            } else {
+                Ok(Json::String(value.to_string()))
+            }
         }
     }
 }

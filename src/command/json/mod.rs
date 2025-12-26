@@ -85,7 +85,7 @@ impl super::Command for JsonCommand {
                 } else {
                     eprintln!("diff tool {} is not installed", diff_tool);
                     println!(
-r#"
+                        r#"
 install {} command-line interface, see:
 {}"#,
                         diff_tool, diff_tool.how_to_install()
@@ -100,9 +100,12 @@ install {} command-line interface, see:
 #[derive(Debug, Clone, Display)]
 pub enum Json {
     #[display("{_0}")]
-    String(String),
+    Stdin(String),
+    Uri(url::Url),
     #[display("{}", _0.display())]
     Path(PathBuf),
+    #[display("{_0}")]
+    String(String),
 }
 mod json;
 
