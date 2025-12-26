@@ -41,8 +41,28 @@ fn main() -> Result<()> {
             }
         }
         Command::TimeNow { timezone, format } => {
-            let result = kit::get_time(
-                kit::TimeReq::Now,
+            let result = kit::time_convertor(
+                kit::InputTime::Now,
+                timezone,
+                format.unwrap_or_default(),
+            )?;
+            println!("{}", result);
+        }
+        Command::TimestampParser {
+            timestamp, unit, timezone, format,
+        } => {
+            let result = kit::time_convertor(
+                kit::InputTime::Timestamp { val: timestamp, unit:unit.unwrap_or_default() },
+                timezone,
+                format.unwrap_or_default(),
+            )?;
+            println!("{}", result);
+        }
+        Command::TimestringParser {
+            timestring, timezone, format,
+        } => {
+            let result = kit::time_convertor(
+                kit::InputTime::StringTime(timestring),
                 timezone,
                 format.unwrap_or_default(),
             )?;
@@ -85,9 +105,29 @@ enum Command {
     },
     #[clap(about = "get current time, alias now", alias = "now")]
     TimeNow {
-        #[arg(long,short, help = "timezone, alias tz", alias = "tz")]
+        #[arg(long, short, help = "timezone, alias tz, default to LOCAL", alias = "tz")]
         timezone: Option<chrono::FixedOffset>,
-        #[arg(long, short, help = "time format")]
+        #[arg(long, short, help = "time format: rfc3339(default), timestamp(ts) or custom format")]
+        format: Option<kit::TimeFormat>,
+    },
+    #[clap(about = "parse timestamp, alias ts", alias = "ts")]
+    TimestampParser {
+        #[arg(help = "timestamp to parse")]
+        timestamp: i64,
+        #[arg(short, long, help = "time unit, seconds(s) or milliseconds(ms, default)")]
+        unit: Option<kit::TimeUnit>,
+        #[arg(long, short, help = "timezone, alias tz, default to LOCAL", alias = "tz")]
+        timezone: Option<chrono::FixedOffset>,
+        #[arg(long, short, help = "time format: rfc3339(default), timestamp(ts) or custom format")]
+        format: Option<kit::TimeFormat>,
+    },
+    #[clap(about = "parse timestring, alias tp", alias = "tp")]
+    TimestringParser {
+        #[arg(help = "time string to parse, eg. 2023-01-01 12:00:00")]
+        timestring: kit::StringTime,
+        #[arg(long, short, help = "timezone, alias tz, default to LOCAL", alias = "tz")]
+        timezone: Option<chrono::FixedOffset>,
+        #[arg(long, short, help = "time format: rfc3339(default), timestamp(ts) or custom format")]
         format: Option<kit::TimeFormat>,
     },
 }
