@@ -13,7 +13,12 @@ fn main() -> Result<()> {
         verbose
     } = CLI::parse();
     let _ = init_logger(verbose)?;
-    let _ = command.run()?;
+    match command.run(){
+        Ok(_)=>{},
+        Err(err) =>{
+            log::error!("{}", err);
+        }
+    }
     Ok(())
 }
 

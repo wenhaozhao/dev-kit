@@ -112,7 +112,10 @@ impl FromStr for Time {
             let mut string = String::new();
             let _ = std::io::stdin().lock().read_to_string(&mut string)
                 .map_err(|err| anyhow!("read from stdin failed, {}", err))?;
-            Ok(Self::from_str(string.trim())?)
+            match string.trim() {
+                "-" => Err(anyhow!("Not a valid input")),
+                _ => Ok(Self::from_str(string.trim())?)
+            }
         } else {
             if let Ok(val) = value.parse::<i64>() {
                 Ok(Self::Timestamp(val.into()))
