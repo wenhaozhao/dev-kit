@@ -1,6 +1,6 @@
 use anyhow::anyhow;
 use chrono::Utc;
-use derive_more::{Deref, Display, From, FromStr};
+use derive_more::{Deref, Display, From};
 use std::io::Read;
 use std::str::FromStr;
 
