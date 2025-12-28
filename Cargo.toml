@@ -2,6 +2,13 @@
 name = "dev-kit"
 version = "0.1.0"
 edition = "2024"
+description = "A collection of utilities and tools for development, including URI, JSON, and Time tools."
+license = "MIT OR Apache-2.0"
+repository = "https://github.com/wenhaozhao/dev-kit"
+homepage = "https://github.com/wenhaozhao/dev-kit"
+readme = "README.md"
+keywords = ["cli", "utilities", "json", "time", "uri"]
+categories = ["command-line-utilities"]
 
 [build-dependencies]
 anyhow = "1.0"
