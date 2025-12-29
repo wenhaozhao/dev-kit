@@ -9,14 +9,14 @@ use strum::EnumIter;
 pub enum JsonCommand {
     #[clap(about = "json beautify, alias 'format'", alias = "format")]
     Beauty {
-        #[arg(help = "json-string, json-file-path", default_value = "-")]
+        #[arg(help = "json input, support string, file-path, url, cmd", default_value = "-")]
         json: Json,
         #[arg(short, long, help = "file to write output")]
         file: Option<PathBuf>,
     },
     #[clap(about = "json query, alias 'search'", alias = "search")]
     Query {
-        #[arg(help = "json-string, json-file-path", default_value = "-")]
+        #[arg(help = "json input, support string, file-path, url, cmd", default_value = "-")]
         json: Json,
         #[arg(short, long, help = "json path to extract")]
         query: String,
@@ -25,9 +25,9 @@ pub enum JsonCommand {
     },
     #[clap(about = "json diff with left and right")]
     Diff {
-        #[arg(help = "left json, json-string, json-file-path", default_value = "-")]
+        #[arg(help = "json input, support string, file-path, url, cmd", default_value = "-")]
         left: Json,
-        #[arg(help = "right json, json-string, json-file-path", default_value = "-")]
+        #[arg(help = "json input, support string, file-path, url, cmd", default_value = "-")]
         right: Json,
         #[arg(short, long, help = "json path to extract")]
         query: Option<String>,

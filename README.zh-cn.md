@@ -14,6 +14,29 @@ A collection of utilities and tools for development.
   ```
 
 ### 2. JSON Tools
+所有 JSON 工具均支持以下输入类型：
+- **JSON String**: 直接输入 JSON 字符串。
+  ```shell
+  $ dev-kit json beauty '{"a":1}'
+  ```
+- **File**: JSON 文件路径。
+  ```shell
+  $ dev-kit json beauty data.json
+  ```
+- **URL**: JSON 资源链接。
+  ```shell
+  $ dev-kit json beauty https://api.example.com/data.json
+  ```
+- **Command**: 输出 JSON 的 Shell 命令。
+  ```shell
+  $ dev-kit json beauty 'cat data.json'
+  ```
+- **Unix Pipe**: 通过 `-` 接收标准输入（stdin）。
+  ```shell
+  $ cat data.json | dev-kit json beauty -
+  ```
+
+#### 命令：
 - **Beauty**: 格式化 JSON 字符串或文件。支持通过别名 `format` 使用。
   ```shell
   $ dev-kit json beauty '{"a":1,"b":2}'

@@ -14,6 +14,29 @@ A collection of utilities and tools for development.
   ```
 
 ### 2. JSON Tools
+All JSON tools support the following input types:
+- **JSON String**: Direct JSON string.
+  ```shell
+  $ dev-kit json beauty '{"a":1}'
+  ```
+- **File**: Path to a JSON file.
+  ```shell
+  $ dev-kit json beauty data.json
+  ```
+- **URL**: URL to a JSON resource.
+  ```shell
+  $ dev-kit json beauty https://api.example.com/data.json
+  ```
+- **Command**: Shell command that outputs JSON.
+  ```shell
+  $ dev-kit json beauty 'cat data.json'
+  ```
+- **Unix Pipe**: Input from stdin using `-`.
+  ```shell
+  $ cat data.json | dev-kit json beauty -
+  ```
+
+#### Commands:
 - **Beauty**: Format JSON strings or files. Supports alias `format`.
   ```shell
   $ dev-kit json beauty '{"a":1,"b":2}'
