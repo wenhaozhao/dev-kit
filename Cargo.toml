@@ -1,5 +1,5 @@
 [workspace]
-members = ["dk", "xtask"]
+members = ["dk", "xtask", "dkui/src-tauri"]
 default-members = ["dk"]
 resolver = "3"
 

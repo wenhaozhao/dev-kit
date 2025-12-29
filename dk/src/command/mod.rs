@@ -30,8 +30,8 @@ impl Command for Commands {
         }
     }
 }
-mod uri;
-mod json;
-mod time;
+pub mod uri;
+pub mod json;
+pub mod time;
 
 

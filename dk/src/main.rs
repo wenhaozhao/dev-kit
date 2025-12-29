@@ -1,11 +1,9 @@
 //! dev-kit
 
-use crate::command::Command;
+use devkit::command::Command;
 use clap::Parser;
 
 type Result<T> = anyhow::Result<T>;
-
-mod command;
 
 fn main() -> Result<()> {
     env_logger::init();
@@ -24,5 +22,5 @@ fn main() -> Result<()> {
 #[derive(clap::Parser)]
 struct CLI {
     #[clap(subcommand)]
-    command: command::Commands,
+    command: devkit::command::Commands,
 }
