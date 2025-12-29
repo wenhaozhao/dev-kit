@@ -1,5 +1,5 @@
 use anyhow::anyhow;
-use derive_more::{Display, FromStr};
+use derive_more::Display;
 use std::env;
 use std::fs;
 use std::path::PathBuf;
@@ -31,7 +31,7 @@ pub enum JsonCommand {
         right: Json,
         #[arg(short, long, help = "json path to extract")]
         query: Option<String>,
-        #[arg(short, long, help = "diff tool to use, alias dt, support idea/zed/vscode, and will auto detect if not set", alias = "dt")]
+        #[arg(long, help = "diff tool to use, alias dt, support idea/zed/vscode, and will auto detect if not set", alias = "dt")]
         diff_tool: Option<DiffTool>,
     },
 }
@@ -100,7 +100,7 @@ install {} command-line interface, see:
 #[derive(Debug, Clone, Display)]
 pub enum Json {
     #[display("{_0}")]
-    Curl(String),
+    Cmd(String),
     #[display("{_0}")]
     Uri(url::Url),
     #[display("{}", _0.display())]
@@ -110,17 +110,32 @@ pub enum Json {
 }
 mod json;
 
-#[derive(Debug, Copy, Clone, Display, FromStr, EnumIter)]
+#[derive(Debug, Copy, Clone, Display, EnumIter)]
 pub enum DiffTool {
-    #[display("idea")]
-    Idea,
+    JetbrainsIDE(JetbrainsIDE),
     #[display("zed")]
     Zed,
     #[display("vscode")]
     VSCode,
 }
+
 mod difftool;
 
+
+#[derive(Debug, Copy, Clone, Display, EnumIter, Default)]
+#[display(rename_all = "lowercase")]
+pub enum JetbrainsIDE {
+    #[default]
+    Idea,
+    CLion,
+    RustRover,
+    GoLand,
+    PyCharm,
+    WebStorm,
+    Rider,
+    DataGrip,
+    AppCode,
+}
 
 #[cfg(test)]
 mod tests {
