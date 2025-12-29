@@ -1,6 +1,6 @@
 [package]
 name = "dev-kit"
-version = "0.1.0"
+version = "0.1.1"
 edition = "2024"
 description = "A collection of utilities and tools for development, including URI, JSON, and Time tools."
 license = "MIT OR Apache-2.0"
