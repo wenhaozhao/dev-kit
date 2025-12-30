@@ -311,8 +311,6 @@ async function saveJsonToFile() {
 
 <template>
   <main class="container">
-    <h1>DevKit UI</h1>
-
     <div class="tabs">
       <button :class="{ active: currentTab === 'json' }" @click="currentTab = 'json'">JSON Parser</button>
       <button :class="{ active: currentTab === 'diff' }" @click="currentTab = 'diff'">JSON Diff</button>
