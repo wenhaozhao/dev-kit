@@ -1,6 +1,6 @@
 [package]
 name = "dkui"
-version = "0.1.0"
+version = "0.1.2"
 description = "DevKit UI App"
 authors = ["zhaowenhao@mhlife.vip"]
 edition = "2021"
