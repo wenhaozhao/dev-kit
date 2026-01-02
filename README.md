@@ -35,6 +35,11 @@ All JSON tools support the following input types:
   ```shell
   $ cat data.json | devkit json beauty -
   ```
+- **JetBrains HTTP**: JetBrains HTTP Client request syntax.
+  ```shell
+  $ devkit json beauty 'GET https://api.example.com/data.json
+  Accept: application/json'
+  ```
 
 #### Commands:
 - **Beauty**: Format JSON strings or files. Supports alias `format`.

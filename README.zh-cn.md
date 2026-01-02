@@ -35,6 +35,11 @@ A collection of utilities and tools for development.
   ```shell
   $ cat data.json | devkit json beauty -
   ```
+- **JetBrains HTTP**: 支持 JetBrains HTTP Client 请求语法。
+  ```shell
+  $ devkit json beauty 'GET https://api.example.com/data.json
+  Accept: application/json'
+  ```
 
 #### 命令：
 - **Beauty**: 格式化 JSON 字符串或文件。支持通过别名 `format` 使用。
