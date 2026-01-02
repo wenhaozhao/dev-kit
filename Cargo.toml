@@ -1,0 +1,28 @@
+[workspace]
+members = ["dk", "xtask"]
+default-members = ["dk"]
+resolver = "3"
+
+[workspace.package]
+version = "0.1.2"
+edition = "2024"
+description = "A collection of utilities and tools for development, including URI, JSON, and Time tools."
+license = "MIT OR Apache-2.0"
+repository = "https://github.com/wenhaozhao/dev-kit"
+homepage = "https://github.com/wenhaozhao/dev-kit"
+documentation = "https://docs.rs/dev-kit"
+readme = "README.md"
+keywords = ["cli", "utilities", "json", "time", "uri"]
+categories = ["command-line-utilities"]
+
+[workspace.dependencies]
+log = "0.4"
+env_logger = "0.11"
+anyhow = { version = "1.0" }
+tempfile = "3.24"
+chrono = "0.4"
+clap = { version = "4.5", features = ["derive"] }
+lazy_static = { version = "1.5" }
+itertools = "0.14"
+derive_more = { version = "2.1" }
+strum = { version = "0.27" }

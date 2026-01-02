@@ -1,0 +1,39 @@
+[package]
+name = "devkit"
+version = { workspace = true }
+edition = { workspace = true }
+description = { workspace = true }
+license = { workspace = true }
+repository = { workspace = true }
+homepage = { workspace = true }
+documentation = { workspace = true }
+
+[build-dependencies]
+anyhow = { workspace = true }
+
+[dev-dependencies]
+tempfile = { workspace = true }
+
+[dependencies]
+log = { workspace = true }
+env_logger = { workspace = true }
+anyhow = { workspace = true }
+chrono = { workspace = true }
+clap = { workspace = true }
+lazy_static = { workspace = true }
+itertools = { workspace = true }
+derive_more = { workspace = true, features = ["display", "from", "from_str", "deref"] }
+strum = { workspace = true, features = ["derive"] }
+regex = { version = "1.12" }
+futures = { version = "0.3" }
+tokio = { version = "1.48", features = ["rt-multi-thread"] }
+url = "2.5"
+reqwest = { version = "0.12", default-features = false, features = ["rustls-tls"] }
+serde_json = { version = "1.0" }
+percent-encoding = "2.3"
+jsonpath-rust = "1.0"
+
+which = "8.0.0"
+
+[features]
+
