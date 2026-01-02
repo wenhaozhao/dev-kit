@@ -1,5 +1,5 @@
 [package]
-name = "devkit"
+name = "dev-kit"
 version = { workspace = true }
 edition = { workspace = true }
 description = { workspace = true }
@@ -7,7 +7,7 @@ license = { workspace = true }
 repository = { workspace = true }
 homepage = { workspace = true }
 documentation = { workspace = true }
-
+readme = { workspace = true }
 [build-dependencies]
 anyhow = { workspace = true }
 
@@ -28,7 +28,7 @@ regex = { version = "1.12" }
 futures = { version = "0.3" }
 tokio = { version = "1.48", features = ["rt-multi-thread"] }
 url = "2.5"
-reqwest = { version = "0.12", default-features = false, features = ["rustls-tls"] }
+reqwest = { version = "0.13", default-features = false, features = ["rustls"] }
 serde_json = { version = "1.0" }
 percent-encoding = "2.3"
 jsonpath-rust = "1.0"
