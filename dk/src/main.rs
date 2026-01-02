@@ -1,5 +1,5 @@
 //! dev-kit
-
+use dev_kit as devkit;
 use devkit::command::Command;
 use clap::Parser;
 
