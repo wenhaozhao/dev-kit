@@ -3,7 +3,7 @@ name = "dkui"
 version = "0.1.4"
 description = "DevKit UI App"
 authors = ["zhaowenhao@mhlife.vip"]
-edition = "2021"
+edition = "2024"
 
 [lib]
 name = "dkui_lib"
