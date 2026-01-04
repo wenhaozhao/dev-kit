@@ -33,5 +33,6 @@ impl Command for Commands {
 pub mod uri;
 pub mod json;
 pub mod time;
+mod http_parser;
 
 

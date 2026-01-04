@@ -43,7 +43,7 @@ impl UriComponentValue {
     pub fn string_value(&self) -> String {
         match self {
             UriComponentValue::Scheme(val) => val.to_string(),
-            UriComponentValue::Authority(val) => val.to_string(),
+            UriComponentValue::Authority(val) => val.as_ref().map(|it|it.to_string()).unwrap_or_default(),
             UriComponentValue::Host(val) => val.to_string(),
             UriComponentValue::Port(val) => val.to_string(),
             UriComponentValue::Path(val) => val.to_string(),

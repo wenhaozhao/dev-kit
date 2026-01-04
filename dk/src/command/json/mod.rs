@@ -1,4 +1,4 @@
-use crate::command::json::http_parser::HttpRequest;
+use crate::command::http_parser::HttpRequest;
 use anyhow::anyhow;
 use derive_more::Display;
 use std::fs;
@@ -116,7 +116,6 @@ pub enum DiffTool {
 }
 
 mod difftool;
-mod http_parser;
 
 #[derive(Debug, Copy, Clone, Display, EnumIter, Default)]
 #[display(rename_all = "lowercase")]

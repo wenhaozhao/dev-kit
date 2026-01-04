@@ -1,7 +1,7 @@
 use chrono::FixedOffset;
 use dev_kit as devkit;
 use devkit::command::json::{DiffTool, Json};
-use devkit::command::time::{Time, TimeCommand, TimeFormat, TimeUnit};
+use devkit::command::time::{Time, TimeCommand, TimeFormat, TimestampUnit};
 use std::collections::HashMap;
 use std::str::FromStr;
 use std::sync::{Arc, Mutex};
@@ -40,6 +40,58 @@ fn greet(name: &str) -> String {
 fn decode_uri(uri: String) -> Result<String, String> {
     let uri = devkit::command::uri::Uri::from_str(&uri).map_err(|e| e.to_string())?;
     uri.decode().map_err(|e| e.to_string())
+}
+
+#[tauri::command]
+fn encode_uri(uri: String) -> Result<String, String> {
+    let uri = devkit::command::uri::Uri::from_str(&uri).map_err(|e| e.to_string())?;
+    uri.encode().map_err(|e| e.to_string())
+}
+
+#[derive(serde::Serialize)]
+struct UriComponentResult {
+    name: String,
+    value: serde_json::Value,
+}
+
+#[tauri::command]
+fn parse_uri(uri: String, filter: Option<Vec<String>>) -> Result<Vec<UriComponentResult>, String> {
+    let uri = devkit::command::uri::Uri::from_str(&uri).map_err(|e| e.to_string())?;
+    let filter = filter.map(|f| {
+        f.into_iter()
+            .map(|s| devkit::command::uri::UriComponent::from_str(&s))
+            .collect::<Result<Vec<_>, _>>()
+    }).transpose().map_err(|e| e.to_string())?;
+    let components = uri.parse(&filter).map_err(|e| e.to_string())?;
+    let result = components
+        .into_iter().map(|c| {
+        let name = c.name().to_string();
+        let value = match c {
+            devkit::command::uri::UriComponentValue::Scheme(s) => serde_json::Value::String(s),
+            devkit::command::uri::UriComponentValue::Authority(Some(a)) => serde_json::Value::String(a),
+            devkit::command::uri::UriComponentValue::Host(h) => serde_json::Value::String(h),
+            devkit::command::uri::UriComponentValue::Port(p) => serde_json::json!(p),
+            devkit::command::uri::UriComponentValue::Path(p) => serde_json::Value::String(p),
+            devkit::command::uri::UriComponentValue::Query(q) => {
+                let mut map = serde_json::Map::new();
+                for (k, v) in q {
+                    let val = match v {
+                        devkit::command::uri::QueryPartVal::Single(s) => {
+                            s.map(serde_json::Value::String).unwrap_or(serde_json::Value::Null)
+                        }
+                        devkit::command::uri::QueryPartVal::Multi(m) => {
+                            serde_json::Value::Array(m.into_iter().map(serde_json::Value::String).collect())
+                        }
+                    };
+                    map.insert(k.to_string(), val);
+                }
+                serde_json::Value::Object(map)
+            }
+            _ => serde_json::Value::Null
+        };
+        UriComponentResult { name, value }
+    }).filter(|UriComponentResult { value, .. }| !value.is_null()).collect();
+    Ok(result)
 }
 
 #[tauri::command]
@@ -106,33 +158,20 @@ fn get_available_diff_tools() -> Vec<String> {
 }
 
 #[tauri::command]
-fn now_time(
-    timezone: Option<String>,
-    format: Option<String>,
-    unit: Option<String>,
-) -> Result<String, String> {
-    let cmd = TimeCommand::Now {
-        timezone: timezone.as_deref().and_then(|tz| FixedOffset::from_str(tz).ok()),
-        format: format.as_deref().and_then(|fmt| TimeFormat::from_str(fmt).ok()),
-        unit: unit.as_deref().and_then(|u| TimeUnit::from_str(u).ok()),
-    };
-    Ok(cmd.run_actual().map_err(|e| e.to_string())?)
-}
-
-#[tauri::command]
 fn parse_time(
     time: String,
-    unit: Option<String>,
     timezone: Option<String>,
     format: Option<String>,
 ) -> Result<String, String> {
     let cmd = TimeCommand::Parse {
         time: Time::from_str(&time).map_err(|e| e.to_string())?,
-        unit: unit.as_deref().and_then(|u| TimeUnit::from_str(u).ok()),
+        input_unit: Some(TimestampUnit::Milliseconds),
         timezone: timezone.as_deref().and_then(|tz| FixedOffset::from_str(tz).ok()),
         format: format.as_deref().and_then(|fmt| TimeFormat::from_str(fmt).ok()),
+        output_unit: Some(TimestampUnit::Milliseconds),
     };
-    Ok(cmd.run_actual().map_err(|e| e.to_string())?)
+    let result = cmd.run_actual().map_err(|e| e.to_string())?;
+    Ok(serde_json::to_string(&result).map_err(|err| err.to_string())?)
 }
 
 #[tauri::command]
@@ -149,12 +188,13 @@ pub fn run() {
         .invoke_handler(tauri::generate_handler![
             greet,
             decode_uri,
+            encode_uri,
+            parse_uri,
             format_json,
             query_json,
             get_json_keys,
             diff_json,
             get_available_diff_tools,
-            now_time,
             parse_time,
             save_to_file
         ])

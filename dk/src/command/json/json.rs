@@ -1,5 +1,5 @@
 use super::{DiffTool, Json};
-use crate::command::json::http_parser::HttpRequest;
+use crate::command::http_parser::HttpRequest;
 use anyhow::anyhow;
 use itertools::Itertools;
 use jsonpath_rust::JsonPath;

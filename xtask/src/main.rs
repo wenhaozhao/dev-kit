@@ -115,7 +115,6 @@ fn main() {
             &format!("failed to copy binary, path: {}", bin_path.display())
         );
         fs::copy(project_root.join("README.md"), deployment_path.join("README.md")).expect("failed to copy README.md");
-        fs::copy(project_root.join("README.zh-cn.md"), deployment_path.join("README.zh-cn.md")).expect("failed to copy README.zh-cn.md");
     }
 }
 

@@ -1,3 +1,4 @@
+use crate::command::http_parser::HttpRequest;
 use crate::command::uri::{QueryPartName, QueryPartVal, Uri, UriComponent, UriComponentValue};
 use anyhow::anyhow;
 use itertools::Itertools;
@@ -18,6 +19,8 @@ impl FromStr for Uri {
                 "-" => Err(anyhow!("Not a valid input")),
                 _ => Ok(Self::from_str(&string)?)
             }
+        } else if let Ok(http_request) = HttpRequest::from_str(value) {
+            Ok(Uri::HttpRequest(http_request))
         } else {
             match url::Url::parse(&value) {
                 Ok(url) => Ok(Uri::Url(url)),
@@ -30,6 +33,10 @@ impl FromStr for Uri {
 impl Uri {
     pub fn decode(&self) -> crate::Result<String> {
         match self {
+            Uri::HttpRequest(req) => {
+                let url = url::Url::try_from(req)?;
+                Ok(percent_decode_str(url.as_str()).decode_utf8()?.to_string())
+            }
             Uri::Url(url) => {
                 Ok(percent_decode_str(url.as_str()).decode_utf8()?.to_string())
             }
@@ -42,6 +49,10 @@ impl Uri {
     pub fn encode(&self) -> crate::Result<String> {
         use percent_encoding::NON_ALPHANUMERIC as ascii_set;
         match self {
+            Uri::HttpRequest(req) => {
+                let url = url::Url::try_from(req)?;
+                Ok(percent_encoding::utf8_percent_encode(url.as_str(), ascii_set).to_string())
+            }
             Uri::Url(url) => {
                 Ok(percent_encoding::utf8_percent_encode(url.as_str(), ascii_set).to_string())
             }
@@ -57,7 +68,14 @@ impl Uri {
             let schema = url.scheme().to_lowercase().to_string();
             let components = vec![
                 UriComponentValue::Scheme(schema.clone()),
-                UriComponentValue::Authority(url.authority().to_string()),
+                UriComponentValue::Authority({
+                    let authority = url.authority().split("@").collect_vec();
+                    if let [a, _] = authority.as_slice() {
+                        Some(a.to_string())
+                    } else {
+                        None
+                    }
+                }),
                 UriComponentValue::Host(url.host_str().unwrap_or_default().to_string()),
                 UriComponentValue::Port({
                     url.port().unwrap_or_else(|| {
@@ -163,8 +181,15 @@ impl TryFrom<&Uri> for url::Url {
 
     fn try_from(uri: &Uri) -> Result<Self, Self::Error> {
         match uri {
-            Uri::Url(url) => Ok(url.clone()),
-            Uri::String(string) => Ok(url::Url::from_str(string)?),
+            Uri::Url(url) => {
+                Ok(url.clone())
+            }
+            Uri::String(string) => {
+                Ok(url::Url::from_str(string)?)
+            }
+            Uri::HttpRequest(req) => {
+                Ok(url::Url::try_from(req).map_err(|_| anyhow!("Invalid http request"))?)
+            }
         }
     }
 }

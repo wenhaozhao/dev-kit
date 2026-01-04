@@ -1,9 +1,11 @@
 [package]
-name = "dkui"
-version = "0.1.4"
-description = "DevKit UI App"
-authors = ["zhaowenhao@mhlife.vip"]
-edition = "2024"
+name = "DevKit"
+description = "DevKit Desktop App"
+version = { workspace = true }
+authors = { workspace = true }
+edition = { workspace = true }
+repository = { workspace = true }
+homepage = { workspace = true }
 
 [lib]
 name = "dkui_lib"
@@ -16,6 +18,7 @@ tauri-build = { version = "2", features = [] }
 tauri = { version = "2", features = [] }
 tauri-plugin-opener = "2"
 tauri-plugin-dialog = "2"
+serde = { version = "1", features = ["derive"] }
 serde_json = "1"
 chrono = { workspace = true }
 strum = { workspace = true, features = ["derive"] }

@@ -288,7 +288,7 @@ impl Display for ParseBuffer {
 
 #[cfg(test)]
 mod tests {
-    use crate::command::json::http_parser::JetBrainsHttp;
+    use crate::command::http_parser::JetBrainsHttp;
     use std::str::FromStr;
 
     #[test]

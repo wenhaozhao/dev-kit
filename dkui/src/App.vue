@@ -1,14 +1,20 @@
 <script setup>
 import { ref } from "vue";
+import { openUrl } from "@tauri-apps/plugin-opener";
 import JsonParser from "./components/JsonParser.vue";
 import JsonDiff from "./components/JsonDiff.vue";
-import UriTools from "./components/UriTools.vue";
-import TimeTools from "./components/TimeTools.vue";
+import UriParser from "./components/UriParser.vue";
+import UriDecoder from "./components/UriDecoder.vue";
+import TimeParser from "./components/TimeParser.vue";
 
 const jsonInput = ref("");
 const jsonRightInput = ref("");
 const jsonQuery = ref("");
 const currentTab = ref("json");
+
+const openGithub = async () => {
+  await openUrl("https://github.com/wenhaozhao/dev-kit");
+};
 
 function updateJson(val) {
   jsonInput.value = val;
@@ -28,27 +34,45 @@ function updateQuery(val) {
     <div class="tabs">
       <button :class="{ active: currentTab === 'json' }" @click="currentTab = 'json'">JSON Parser</button>
       <button :class="{ active: currentTab === 'diff' }" @click="currentTab = 'diff'">JSON Diff</button>
-      <button :class="{ active: currentTab === 'uri' }" @click="currentTab = 'uri'">URI Tools</button>
-      <button :class="{ active: currentTab === 'time' }" @click="currentTab = 'time'">Time Tools</button>
+      <button :class="{ active: currentTab === 'uri_parse' }" @click="currentTab = 'uri_parse'">URI Parser</button>
+      <button :class="{ active: currentTab === 'uri_decoder' }" @click="currentTab = 'uri_decoder'">URI Decoder</button>
+      <button :class="{ active: currentTab === 'time' }" @click="currentTab = 'time'">Time Parser</button>
+      <a href="#" class="github-link" @click.prevent="openGithub" title="GitHub">
+        <svg height="24" viewBox="0 0 16 16" width="24" fill="currentColor">
+          <path d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27.68 0 1.36.09 2 .27 1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.013 8.013 0 0016 8c0-4.42-3.58-8-8-8z"></path>
+        </svg>
+      </a>
     </div>
 
-    <UriTools v-if="currentTab === 'uri'" />
+    <KeepAlive>
+      <UriParser v-if="currentTab === 'uri_parse'" />
+    </KeepAlive>
 
-    <JsonParser v-if="currentTab === 'json'" 
-      :initialJson="jsonInput" 
-      :initialQuery="jsonQuery"
-      @update:json="updateJson"
-      @update:query="updateQuery" />
+    <KeepAlive>
+      <UriDecoder v-if="currentTab === 'uri_decoder'" />
+    </KeepAlive>
 
-    <JsonDiff v-if="currentTab === 'diff'" 
-      :initialLeftJson="jsonInput"
-      :initialRightJson="jsonRightInput"
-      :initialQuery="jsonQuery"
-      @update:leftJson="updateJson"
-      @update:rightJson="updateRightJson"
-      @update:query="updateQuery" />
+    <KeepAlive>
+      <JsonParser v-if="currentTab === 'json'" 
+        :initialJson="jsonInput" 
+        :initialQuery="jsonQuery"
+        @update:json="updateJson"
+        @update:query="updateQuery" />
+    </KeepAlive>
 
-    <TimeTools v-if="currentTab === 'time'" />
+    <KeepAlive>
+      <JsonDiff v-if="currentTab === 'diff'" 
+        :initialLeftJson="jsonInput"
+        :initialRightJson="jsonRightInput"
+        :initialQuery="jsonQuery"
+        @update:leftJson="updateJson"
+        @update:rightJson="updateRightJson"
+        @update:query="updateQuery" />
+    </KeepAlive>
+
+    <KeepAlive>
+      <TimeParser v-if="currentTab === 'time'" />
+    </KeepAlive>
   </main>
 </template>
 
@@ -57,7 +81,7 @@ function updateQuery(val) {
   width: 100%;
   box-sizing: border-box;
   margin: 0;
-  padding: 20px;
+  padding: 0 20px 20px 20px;
 }
 
 .tabs {
@@ -66,6 +90,31 @@ function updateQuery(val) {
   margin-bottom: 20px;
   border-bottom: 1px solid #ccc;
   padding-bottom: 10px;
+  position: sticky;
+  top: 0;
+  background-color: #fff;
+  z-index: 100;
+  padding-top: 10px;
+  overflow-x: auto;
+  scrollbar-width: none; /* Firefox */
+  align-items: center;
+}
+
+.tabs::-webkit-scrollbar {
+  display: none; /* Safari and Chrome */
+}
+
+.github-link {
+  margin-left: auto;
+  display: flex;
+  align-items: center;
+  color: #333;
+  transition: color 0.2s;
+  padding: 0 10px;
+}
+
+.github-link:hover {
+  color: #000;
 }
 
 .tabs button {
@@ -73,6 +122,8 @@ function updateQuery(val) {
   color: #666;
   border: 1px solid transparent;
   padding: 8px 16px;
+  cursor: pointer;
+  white-space: nowrap;
 }
 
 .tabs button.active {
@@ -84,12 +135,19 @@ function updateQuery(val) {
 @media (prefers-color-scheme: dark) {
   .tabs {
     border-color: #444;
+    background-color: #1a1a1a;
   }
   .tabs button {
     color: #aaa;
   }
   .tabs button.active {
     color: white;
+  }
+  .github-link {
+    color: #ccc;
+  }
+  .github-link:hover {
+    color: #fff;
   }
 }
 </style>

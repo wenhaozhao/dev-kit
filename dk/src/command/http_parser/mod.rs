@@ -12,7 +12,7 @@ use url::Url;
 #[derive(Debug, Clone, Display)]
 pub enum HttpRequest {
     JetBrainsHttp(JetBrainsHttp),
-    Uri(url::Url),
+    Uri(Url),
     #[display("{}", _0.display())]
     FilePath(PathBuf),
 }

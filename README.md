@@ -1,8 +1,8 @@
 # Dev Kit
 
-A collection of utilities and tools for development.
+<img src="./dkui/public/dk_icon.png" style="width: 128px;">
 
-[中文版](./README.zh-cn.md)
+A collection of utilities and tools for development.
 
 ## Features
 

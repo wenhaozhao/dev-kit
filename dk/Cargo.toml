@@ -1,13 +1,16 @@
 [package]
 name = "dev-kit"
+description = "DevKit Command-Line App"
 version = { workspace = true }
+authors = { workspace = true }
 edition = { workspace = true }
-description = { workspace = true }
-license = { workspace = true }
 repository = { workspace = true }
 homepage = { workspace = true }
+
+license = { workspace = true }
 documentation = { workspace = true }
 readme = { workspace = true }
+
 [build-dependencies]
 anyhow = { workspace = true }
 

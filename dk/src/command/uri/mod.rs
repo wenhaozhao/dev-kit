@@ -72,15 +72,14 @@ impl super::Command for UriCommand {
 
 #[derive(Debug, Clone, Display)]
 pub enum Uri {
-    #[display("{_0}")]
     Url(url::Url),
-    #[display("{_0}")]
     String(String),
+    HttpRequest(super::http_parser::HttpRequest),
 }
 
 mod uri;
 
-#[derive(Debug, Clone, Display)]
+#[derive(Debug, Clone, Display, Deserialize)]
 pub enum UriComponent {
     Scheme,
     Authority,
@@ -94,7 +93,7 @@ pub enum UriComponent {
 #[derive(Debug, Clone)]
 pub enum UriComponentValue {
     Scheme(String),
-    Authority(String),
+    Authority(Option<String>),
     Host(String),
     Port(u16),
     Path(String),
