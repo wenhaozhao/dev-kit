@@ -28,12 +28,14 @@ regex = { version = "1.12" }
 futures = { version = "0.3" }
 tokio = { version = "1.48", features = ["rt-multi-thread"] }
 url = "2.5"
+serde_urlencoded = {version = "0.7"}
 reqwest = { version = "0.13", default-features = false, features = ["rustls"] }
 serde_json = { version = "1.0" }
 percent-encoding = "2.3"
 jsonpath-rust = "1.0"
 
 which = "8.0.0"
+serde = { version = "1.0.228", features = ["derive"] }
 
 [features]
 
