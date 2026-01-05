@@ -37,7 +37,7 @@ serde_json = { version = "1.0" }
 percent-encoding = "2.3"
 jsonpath-rust = "1.0"
 dateparser = { version = "0.2" }
-which = "8.0.0"
+which = {workspace = true}
 serde = { version = "1.0.228", features = ["derive"] }
 
 [features]
