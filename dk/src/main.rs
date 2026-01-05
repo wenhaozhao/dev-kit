@@ -1,20 +1,28 @@
-//! dev-kit
+//!
+//! DevKit
+//!
+use clap::{CommandFactory, Parser};
 use dev_kit as devkit;
 use devkit::command::Command;
-use clap::Parser;
 
 type Result<T> = anyhow::Result<T>;
 
 fn main() -> Result<()> {
     env_logger::init();
     let CLI {
-        command,
+        command, version,
     } = CLI::parse();
-    match command.run() {
-        Ok(_) => {}
-        Err(err) => {
-            log::error!("{}", err);
+    if let Some(command) = command {
+        match command.run() {
+            Ok(_) => {}
+            Err(err) => {
+                log::error!("{}", err);
+            }
         }
+    } else if version {
+        println!("DevKit v{}", env!("CARGO_PKG_VERSION"));
+    } else {
+        CLI::command().print_help()?;
     }
     Ok(())
 }
@@ -22,5 +30,7 @@ fn main() -> Result<()> {
 #[derive(clap::Parser)]
 struct CLI {
     #[clap(subcommand)]
-    command: devkit::command::Commands,
+    command: Option<devkit::command::Commands>,
+    #[clap(long, help = "show version")]
+    version: bool,
 }
