@@ -1,5 +1,4 @@
 use super::Timestring;
-use chrono::TimeZone;
 use std::convert::TryFrom;
 
 impl TryFrom<&Timestring> for chrono::DateTime<chrono::Utc> {
@@ -33,62 +32,14 @@ fn parse_from_rfc2822(val: &str) -> Option<chrono::DateTime<chrono::Utc>> {
     }
 }
 
-
 fn guess_from_known_formats(val: &str) -> Option<chrono::DateTime<chrono::Utc>> {
-    const FORMATES: &[&str] = &[
-        "%a %b %d %H:%M:%S %Z %Y",
-        "%Y-%m-%d %H:%M:%S",
-        "%Y-%m-%dT%H:%M:%S",
-        "%Y-%m-%d %H:%M:%S%.f",
-        "%Y-%m-%dT%H:%M:%S%.f",
-        "%Y/%m/%d %H:%M:%S",
-        "%Y/%m/%dT%H:%M:%S",
-        "%Y/%m/%d %H:%M:%S%.f",
-        "%Y/%m/%dT%H:%M:%S%.f",
-        "%m-%d-%Y %H:%M:%S",
-        "%m-%d-%YT%H:%M:%S",
-        "%m-%d-%Y %H:%M:%S%.f",
-        "%m-%d-%YT%H:%M:%S%.f",
-        "%m/%d/%Y %H:%M:%S",
-        "%m/%d/%YT%H:%M:%S",
-        "%m/%d/%Y %H:%M:%S%.f",
-        "%m/%d/%YT%H:%M:%S%.f",
-        "%d-%m-%Y %H:%M:%S",
-        "%d-%m-%YT%H:%M:%S",
-        "%d-%m-%Y %H:%M:%S%.f",
-        "%d-%m-%YT%H:%M:%S%.f",
-        "%d/%m/%Y %H:%M:%S",
-        "%d/%m/%YT%H:%M:%S",
-        "%d/%m/%Y %H:%M:%S%.f",
-        "%d/%m/%YT%H:%M:%S%.f",
-        "%Y-%m-%d",
-        "%Y/%m/%d",
-        "%m-%d-%Y",
-        "%d-%m-%Y",
-    ];
-    let default_timezone = *chrono::Local::now().offset();
-    for &format in FORMATES {
-        match chrono::NaiveDateTime::parse_from_str(val, format) {
-            Ok(naive_dt) => {
-                if let Some(time) = default_timezone.from_local_datetime(&naive_dt).single() {
-                    return Some(time.to_utc());
-                }
-            }
-            Err(err) => {
-                log::debug!("guess time {val} by {format} failed, err: {err:?}");
-            }
+    match dateparser::parse(val) {
+        Ok(utc_dt) => {
+            Some(utc_dt)
         }
-        match chrono::NaiveDate::parse_from_str(val, format).map(|it| it.and_hms_opt(0, 0, 0)) {
-            Ok(naive_date) => {
-                if let Some(time) = naive_date.and_then(|it| default_timezone.from_local_datetime(&it).single()) {
-                    return Some(time.to_utc());
-                }
-            }
-            Err(err) => {
-                log::debug!("guess time {val} by {format} failed, err: {err:?}");
-            }
+        Err(err) => {
+            log::debug!("guess time {val} failed, err: {err:?}");
+            None
         }
     }
-    log::debug!("guess tim {val} failed with all known formats");
-    None
 }
