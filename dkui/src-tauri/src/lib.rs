@@ -1,10 +1,12 @@
+use base64::Engine;
 use chrono::FixedOffset;
 use dev_kit as devkit;
 use devkit::command::json::{DiffTool, Json};
+use devkit::command::qrcode::{OutputType, QrContent, QrEcLevel, QrVersion};
 use devkit::command::time::{Time, TimeCommand, TimeFormat, TimestampUnit};
 use lazy_static::lazy_static;
 use std::collections::HashMap;
-use std::io::Write;
+use std::io::{Read, Write};
 use std::path::PathBuf;
 use std::str::FromStr;
 use std::sync::atomic::{AtomicPtr, Ordering};
@@ -184,6 +186,61 @@ fn save_to_file(path: String, content: String) -> Result<(), String> {
     std::fs::write(&path, content).map_err(|e| e.to_string())
 }
 
+#[tauri::command]
+fn save_image_to_file(path: String, base64_content: String) -> Result<(), String> {
+    let base64_data = if base64_content.contains(",") {
+        base64_content.split(',').nth(1).unwrap_or(&base64_content)
+    } else {
+        &base64_content
+    };
+    let buffer = base64::engine::general_purpose::STANDARD
+        .decode(base64_data)
+        .map_err(|e| e.to_string())?;
+    std::fs::write(&path, buffer).map_err(|e| e.to_string())
+}
+
+#[tauri::command]
+fn generate_qrcode(
+    content: String,
+    ec_level: Option<String>,
+    version: Option<u8>,
+    output_type: Option<String>,
+) -> Result<String, String> {
+    let content = QrContent::from_str(&content).map_err(|e| e.to_string())?;
+    let ec_level = ec_level
+        .map(|s| QrEcLevel::from_str(&s).unwrap_or_default())
+        .unwrap_or_default();
+    let version = version
+        .map(|v| QrVersion::from_str(&v.to_string()).unwrap_or_default())
+        .unwrap_or_default();
+    let output_type = output_type
+        .map(|s| OutputType::from_str(&s).unwrap_or(OutputType::Svg))
+        .unwrap_or(OutputType::Svg);
+
+    let result = devkit::command::qrcode::generator::generate(
+        &content,
+        ec_level,
+        version,
+        output_type,
+    )
+    .map_err(|e| e.to_string())?;
+
+    match result {
+        devkit::command::qrcode::generator::QrCodeImage::Svg(path) => {
+            let svg = std::fs::read_to_string(path).map_err(|e| e.to_string())?;
+            Ok(svg)
+        }
+        devkit::command::qrcode::generator::QrCodeImage::Image(path) => {
+            let mut file = std::fs::File::open(path).map_err(|e| e.to_string())?;
+            let mut buffer = Vec::new();
+            file.read_to_end(&mut buffer).map_err(|e| e.to_string())?;
+            let base64 = base64::engine::general_purpose::STANDARD.encode(buffer);
+            Ok(format!("data:image/png;base64,{}", base64))
+        }
+        _ => Err("Unexpected QR code output type".to_string()),
+    }
+}
+
 lazy_static! {
     static ref DEVKIT_PATH: AtomicPtr<PathBuf> = {
         match which::which("devkit"){
@@ -286,8 +343,10 @@ pub fn run() {
             get_available_diff_tools,
             parse_time,
             save_to_file,
+            save_image_to_file,
             show_add_to_path_bth,
             add_to_path,
+            generate_qrcode
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

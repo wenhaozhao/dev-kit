@@ -1,3 +1,4 @@
+
 #[derive(clap::Subcommand)]
 pub enum Commands {
     #[clap(about = "uri-tools")]
@@ -15,6 +16,11 @@ pub enum Commands {
         #[clap(subcommand)]
         command: time::TimeCommand,
     },
+    #[clap(name = "qrcode", about = "qrcode-tools, alias 'qr'", alias = "qr")]
+    QrCode {
+        #[clap(subcommand)]
+        command: qrcode::QrCodeCommand,
+    },
 }
 
 pub trait Command {
@@ -27,12 +33,44 @@ impl Command for Commands {
             Commands::Uri { command } => command.run(),
             Commands::Json { command } => command.run(),
             Commands::Time { command } => command.run(),
+            Commands::QrCode { command } => command.run(),
         }
     }
 }
+
+mod http_parser;
 pub mod uri;
 pub mod json;
 pub mod time;
-mod http_parser;
+pub mod qrcode;
 
+
+#[cfg(feature = "read_stdin")]
+fn read_stdin() -> Option<String> {
+    use std::io::{BufRead, IsTerminal};
+    let stdin = std::io::stdin().lock();
+    if stdin.is_terminal() {
+        None
+    } else {
+        let mut lines = vec![];
+        for line in stdin.lines() {
+            match line {
+                Ok(line) => {
+                    let _ = lines.push(line);
+                }
+                Err(err) => {
+                    log::error!("read from stdin failed, {}", err);
+                    break;
+                }
+            }
+        }
+        let string = lines.join("\n");
+        Some(string)
+    }
+}
+
+#[cfg(not(feature = "read_stdin"))]
+fn read_stdin() -> Option<String> {
+    None
+}
 

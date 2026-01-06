@@ -1,10 +1,10 @@
+use crate::command::read_stdin;
 use anyhow::anyhow;
 use chrono::{FixedOffset, Utc};
 use derive_more::{Deref, Display, From, FromStr};
-use std::io::Read;
+use serde::Serialize;
 use std::panic;
 use std::str::FromStr;
-use serde::Serialize;
 
 #[derive(clap::Subcommand)]
 pub enum TimeCommand {
@@ -141,14 +141,8 @@ impl FromStr for Time {
     type Err = anyhow::Error;
 
     fn from_str(value: &str) -> Result<Self, Self::Err> {
-        if value.eq("-") {
-            let mut string = String::new();
-            let _ = std::io::stdin().lock().read_to_string(&mut string)
-                .map_err(|err| anyhow!("read from stdin failed, {}", err))?;
-            match string.trim() {
-                "-" => Err(anyhow!("Not a valid input")),
-                _ => Ok(Self::from_str(string.trim())?)
-            }
+        if let Some(string) = read_stdin() {
+            Ok(Self::from_str(string.trim())?)
         } else {
             if let Ok(val) = value.parse::<i64>() {
                 Ok(Self::Timestamp(val.into()))

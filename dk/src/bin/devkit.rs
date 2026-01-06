@@ -31,6 +31,6 @@ fn main() -> Result<()> {
 struct CLI {
     #[clap(subcommand)]
     command: Option<devkit::command::Commands>,
-    #[clap(long, help = "show version")]
+    #[clap(long, short, help = "show version")]
     version: bool,
 }

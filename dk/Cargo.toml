@@ -11,6 +11,10 @@ license = { workspace = true }
 documentation = { workspace = true }
 readme = { workspace = true }
 
+[[bin]]
+name = "devkit"
+description = "DevKit Command-Line App"
+
 [build-dependencies]
 anyhow = { workspace = true }
 
@@ -37,8 +41,12 @@ serde_json = { version = "1.0" }
 percent-encoding = "2.3"
 jsonpath-rust = "1.0"
 dateparser = { version = "0.2" }
-which = {workspace = true}
+which = { workspace = true }
 serde = { version = "1.0.228", features = ["derive"] }
+qrcode = { version = "0.14", features = ["image", "svg"] }
+image = "0.25"
+uuid = { version = "1.19", features = ["v4"] }
 
 [features]
-
+read_stdin = []
+default = ["read_stdin"]

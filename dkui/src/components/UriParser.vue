@@ -101,7 +101,7 @@ async function handleParse() {
 async function copyToClipboard(e) {
   const text = e.target.innerText;
   try {
-    await navigator.clipboard.writeText(text);
+    await invoke("copy_to_clipboard", { text });
     // Visual feedback
     const originalBg = e.target.style.backgroundColor;
     e.target.style.backgroundColor = '#d4edda';

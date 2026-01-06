@@ -1,24 +1,18 @@
 use crate::command::http_parser::HttpRequest;
+use crate::command::read_stdin;
 use crate::command::uri::{QueryPartName, QueryPartVal, Uri, UriComponent, UriComponentValue};
 use anyhow::anyhow;
 use itertools::Itertools;
 use percent_encoding::percent_decode_str;
 use std::collections::BTreeMap;
-use std::io::Read;
 use std::str::FromStr;
 
 impl FromStr for Uri {
     type Err = anyhow::Error;
 
     fn from_str(value: &str) -> Result<Self, Self::Err> {
-        if value.eq("-") {
-            let mut string = String::new();
-            let _ = std::io::stdin().lock().read_to_string(&mut string)
-                .map_err(|err| anyhow!("read from stdin failed, {}", err))?;
-            match string.trim() {
-                "-" => Err(anyhow!("Not a valid input")),
-                _ => Ok(Self::from_str(&string)?)
-            }
+        if let Some(string) = read_stdin() {
+            Ok(Self::from_str(&string)?)
         } else if let Ok(http_request) = HttpRequest::from_str(value) {
             Ok(Uri::HttpRequest(http_request))
         } else {

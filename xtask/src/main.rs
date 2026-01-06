@@ -44,7 +44,7 @@ impl FromStr for BuildTarget {
     }
 }
 
-const BIN_NAME: &str = "dev-kit";
+const BIN_NAME: &str = "devkit";
 
 impl BuildTarget {
     fn bin_path<P: AsRef<Path>>(&self, target_path: P) -> PathBuf {

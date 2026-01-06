@@ -1,10 +1,10 @@
 use super::{DiffTool, Json};
 use crate::command::http_parser::HttpRequest;
+use crate::command::read_stdin;
 use anyhow::anyhow;
 use itertools::Itertools;
 use jsonpath_rust::JsonPath;
 use lazy_static::lazy_static;
-use std::io::Read;
 use std::path::PathBuf;
 use std::process::Command;
 use std::str::FromStr;
@@ -155,14 +155,8 @@ impl FromStr for Json {
     type Err = anyhow::Error;
 
     fn from_str(value: &str) -> Result<Self, Self::Err> {
-        let result = if value.eq("-") {
-            let mut string = String::new();
-            let _ = std::io::stdin().lock().read_to_string(&mut string)
-                .map_err(|err| anyhow!("read from stdin failed, {}", err))?;
-            match string.trim() {
-                "-" => Err(anyhow!("Not a valid input")),
-                _ => Ok(Self::from_str(&string)?)
-            }
+        let result = if let Some(string) = read_stdin() {
+            Ok(Self::from_str(&string)?)
         } else if let Ok(http_request) = HttpRequest::from_str(value) {
             Ok(Json::HttpRequest(http_request))
         } else if let Some(_cmd_path) = CMD_SPLIT_PATTERN.captures(&value)
