@@ -16,11 +16,8 @@ pub enum Commands {
         #[clap(subcommand)]
         command: time::TimeCommand,
     },
-    #[clap(name = "qrcode", about = "qrcode-tools, alias 'qr'", alias = "qr")]
-    QrCode {
-        #[clap(subcommand)]
-        command: qrcode::QrCodeCommand,
-    },
+    #[clap(name = "qrcode", about = "qrcode generator, alias 'qr'", alias = "qr")]
+    QrCode(qrcode::QrCodeArgs,)
 }
 
 pub trait Command {
@@ -33,7 +30,7 @@ impl Command for Commands {
             Commands::Uri { command } => command.run(),
             Commands::Json { command } => command.run(),
             Commands::Time { command } => command.run(),
-            Commands::QrCode { command } => command.run(),
+            Commands::QrCode (args) => args.run(),
         }
     }
 }
