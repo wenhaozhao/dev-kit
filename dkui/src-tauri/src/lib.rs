@@ -6,12 +6,13 @@ use devkit::command::qrcode::{OutputType, QrContent, QrEcLevel, QrVersion};
 use devkit::command::time::{Time, TimeCommand, TimeFormat, TimestampUnit};
 use lazy_static::lazy_static;
 use std::collections::HashMap;
-use std::io::{Read, Write};
+use std::io::Read;
+use std::ops::Deref;
 use std::path::PathBuf;
+use std::ptr;
 use std::str::FromStr;
 use std::sync::atomic::{AtomicPtr, Ordering};
 use std::sync::{Arc, Mutex};
-use std::{fs, ptr};
 
 #[derive(Default)]
 struct JsonCache {
@@ -199,19 +200,33 @@ fn save_image_to_file(path: String, base64_content: String) -> Result<(), String
     std::fs::write(&path, buffer).map_err(|e| e.to_string())
 }
 
+#[derive(serde::Serialize)]
+struct QrCodeResponse {
+    data: String,
+    ec_level: String,
+    version: String,
+}
+
 #[tauri::command]
 fn generate_qrcode(
     content: String,
     ec_level: Option<String>,
-    version: Option<u8>,
+    version: Option<serde_json::Value>,
     output_type: Option<String>,
-) -> Result<String, String> {
+) -> Result<QrCodeResponse, String> {
     let content = QrContent::from_str(&content).map_err(|e| e.to_string())?;
     let ec_level = ec_level
         .map(|s| QrEcLevel::from_str(&s).unwrap_or_default())
         .unwrap_or_default();
     let version = version
-        .map(|v| QrVersion::from_str(&v.to_string()).unwrap_or_default())
+        .map(|v| {
+            let s = match v {
+                serde_json::Value::String(s) => s,
+                serde_json::Value::Number(n) => n.to_string(),
+                _ => "auto".to_string(),
+            };
+            QrVersion::from_str(&s).unwrap_or_default()
+        })
         .unwrap_or_default();
     let output_type = output_type
         .map(|s| OutputType::from_str(&s).unwrap_or(OutputType::Svg))
@@ -219,26 +234,31 @@ fn generate_qrcode(
 
     let result = devkit::command::qrcode::generator::generate(
         &content,
-        ec_level,
-        version,
+        &ec_level,
+        &version,
         output_type,
     )
-    .map_err(|e| e.to_string())?;
+        .map_err(|e| e.to_string())?;
 
-    match result {
-        devkit::command::qrcode::generator::QrCodeImage::Svg(path) => {
-            let svg = std::fs::read_to_string(path).map_err(|e| e.to_string())?;
-            Ok(svg)
+    let data = match result.deref() {
+        devkit::command::qrcode::generator::QrCodeImageVal::Svg(path) => {
+            std::fs::read_to_string(path).map_err(|e| e.to_string())?
         }
-        devkit::command::qrcode::generator::QrCodeImage::Image(path) => {
+        devkit::command::qrcode::generator::QrCodeImageVal::Image(path) => {
             let mut file = std::fs::File::open(path).map_err(|e| e.to_string())?;
             let mut buffer = Vec::new();
             file.read_to_end(&mut buffer).map_err(|e| e.to_string())?;
             let base64 = base64::engine::general_purpose::STANDARD.encode(buffer);
-            Ok(format!("data:image/png;base64,{}", base64))
+            format!("data:image/png;base64,{}", base64)
         }
-        _ => Err("Unexpected QR code output type".to_string()),
-    }
+        _ => return Err("Unexpected QR code output type".to_string()),
+    };
+
+    Ok(QrCodeResponse {
+        data,
+        ec_level: result.ec_level.to_string(),
+        version: result.version.to_string(),
+    })
 }
 
 lazy_static! {
@@ -271,6 +291,7 @@ fn show_add_to_path_bth() -> Result<String, String> {
     }
 }
 
+#[cfg(any(target_os = "macos", target_os = "linux"))]
 fn get_current_shell() -> Option<String> {
     std::env::var("SHELL").ok().and_then(|shell_path| {
         PathBuf::from(&shell_path)
@@ -282,10 +303,11 @@ fn get_current_shell() -> Option<String> {
 
 #[tauri::command]
 fn add_to_path() -> Result<String, String> {
-    if  !DEVKIT_PATH.load(Ordering::Relaxed).is_null() {
+    if !DEVKIT_PATH.load(Ordering::Relaxed).is_null() {
         return Ok("devkit already in PATH".to_string());
     }
     #[cfg(any(target_os = "macos", target_os = "linux"))]{
+        use std::{fs, io::Write};
         let current_exe = std::env::current_exe().map_err(|e| e.to_string())?;
         let bin_dir = current_exe.parent().ok_or("Failed to get bin directory")?;
         let home_path = PathBuf::from(std::env::var("HOME").map_err(|e| e.to_string())?);

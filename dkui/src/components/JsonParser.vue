@@ -154,7 +154,15 @@ onMounted(() => {
 <template>
   <section class="tool-section">
     <div class="json-inputs">
-      <textarea v-model="jsonInput" placeholder="Enter JSON..." rows="10"></textarea>
+      <div class="textarea-container">
+        <textarea v-model="jsonInput" placeholder="Enter JSON..." rows="5"></textarea>
+        <button v-if="jsonInput" class="clear-button" @click="jsonInput = ''" title="Clear">
+          <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <line x1="18" y1="6" x2="6" y2="18"></line>
+            <line x1="6" y1="6" x2="18" y2="18"></line>
+          </svg>
+        </button>
+      </div>
     </div>
     <div class="row query-row">
       <input v-model="jsonQuery" placeholder="json path filter" 
@@ -198,9 +206,39 @@ onMounted(() => {
   margin-bottom: 10px;
 }
 
+.textarea-container {
+  position: relative;
+  flex: 1;
+  display: flex;
+  width: 0;
+}
+
+.clear-button {
+  position: absolute;
+  top: 8px;
+  right: 8px;
+  padding: 4px;
+  background: rgba(0, 0, 0, 0.1);
+  color: #666;
+  border: none;
+  border-radius: 4px;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 10;
+  transition: background 0.2s, color 0.2s;
+}
+
+.clear-button:hover {
+  background: rgba(0, 0, 0, 0.2);
+  color: #333;
+}
+
 .json-outputs .output {
   flex: 1;
   margin-top: 0;
+  width: 0;
 }
 
 input, textarea {
@@ -213,7 +251,9 @@ input, textarea {
 }
 
 textarea {
-  min-height: calc(1.5em * 5 + 16px);
+  min-height: calc(1.2em * 5 + 16px);
+  line-height: 1.2;
+  resize: vertical;
 }
 
 button {
@@ -283,6 +323,14 @@ button:hover {
   .suggestions-dropdown {
     background-color: #2a2a2a;
     border-color: #444;
+  }
+  .clear-button {
+    background: rgba(255, 255, 255, 0.1);
+    color: #aaa;
+  }
+  .clear-button:hover {
+    background: rgba(255, 255, 255, 0.2);
+    color: #fff;
   }
   .suggestion-item {
     color: #d4d4d4;

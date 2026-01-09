@@ -5,9 +5,9 @@ import { save } from "@tauri-apps/plugin-dialog";
 
 const content = ref("");
 const ecLevel = ref("q");
-const version = ref(3);
+const version = ref("auto");
 const outputType = ref("image");
-const qrData = ref("");
+const qrData = ref(null);
 const error = ref("");
 
 const ecLevels = [
@@ -24,7 +24,7 @@ const outputTypes = [
 
 async function generateQrCode() {
   if (!content.value) {
-    qrData.value = "";
+    qrData.value = null;
     error.value = "";
     return;
   }
@@ -40,7 +40,7 @@ async function generateQrCode() {
     qrData.value = res;
   } catch (e) {
     error.value = e.toString();
-    qrData.value = "";
+    qrData.value = null;
   }
 }
 
@@ -52,7 +52,7 @@ watch([content, ecLevel, version, outputType], () => {
 });
 
 async function saveToFile() {
-  if (!qrData.value) return;
+  if (!qrData.value || !qrData.value.data) return;
 
   const isSvg = outputType.value === "svg";
   const filePath = await save({
@@ -66,9 +66,9 @@ async function saveToFile() {
 
   try {
     if (isSvg) {
-      await invoke("save_to_file", { path: filePath, content: qrData.value });
+      await invoke("save_to_file", { path: filePath, content: qrData.value.data });
     } else {
-      await invoke("save_image_to_file", { path: filePath, base64Content: qrData.value });
+      await invoke("save_image_to_file", { path: filePath, base64Content: qrData.value.data });
     }
   } catch (e) {
     error.value = `Failed to save file: ${e.toString()}`;
@@ -79,12 +79,20 @@ async function saveToFile() {
 <template>
   <section class="tool-section">
     <div class="input-section">
-      <textarea
-        v-model="content"
-        placeholder="Enter text to generate QR code..."
-        class="qr-input"
-        rows="5"
-      ></textarea>
+      <div class="textarea-container">
+        <textarea
+          v-model="content"
+          placeholder="Enter text to generate QR code..."
+          class="qr-input"
+          rows="5"
+        ></textarea>
+        <button v-if="content" class="clear-button" @click="content = ''" title="Clear">
+          <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <line x1="18" y1="6" x2="6" y2="18"></line>
+            <line x1="6" y1="6" x2="18" y2="18"></line>
+          </svg>
+        </button>
+      </div>
       
       <div class="controls row">
         <div class="control-group">
@@ -97,8 +105,13 @@ async function saveToFile() {
         </div>
         
         <div class="control-group">
-          <label>Version (1-40):</label>
-          <input type="number" v-model.number="version" min="1" max="40" />
+          <label>Version:</label>
+          <select v-model="version">
+            <option value="auto">Auto</option>
+            <option v-for="v in 40" :key="v" :value="v">
+              v{{ v }} ({{ v * 4 + 17 }}*{{ v * 4 + 17 }})
+            </option>
+          </select>
         </div>
 
         <div class="control-group">
@@ -117,9 +130,13 @@ async function saveToFile() {
         {{ error }}
       </div>
       <div v-else-if="qrData" class="qr-display">
-        <div v-if="outputType === 'svg'" class="svg-container" v-html="qrData"></div>
+        <div class="qr-info">
+          <span>Error Correction: {{ qrData.ec_level }}</span>
+          <span>Version: {{ qrData.version }}</span>
+        </div>
+        <div v-if="outputType === 'svg'" class="svg-container" v-html="qrData.data"></div>
         <div v-else class="png-container">
-          <img :src="qrData" alt="QR Code" />
+          <img :src="qrData.data" alt="QR Code" />
         </div>
         <button @click="saveToFile" class="save-btn">Save to File</button>
       </div>
@@ -140,11 +157,38 @@ async function saveToFile() {
 }
 
 .input-section {
-  width: 100%;
   display: flex;
   flex-direction: column;
   gap: 15px;
   margin-bottom: 20px;
+}
+
+.textarea-container {
+  position: relative;
+  display: flex;
+  width: 100%;
+}
+
+.clear-button {
+  position: absolute;
+  top: 8px;
+  right: 8px;
+  padding: 4px;
+  background: rgba(0, 0, 0, 0.1);
+  color: #666;
+  border: none;
+  border-radius: 4px;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 10;
+  transition: background 0.2s, color 0.2s;
+}
+
+.clear-button:hover {
+  background: rgba(0, 0, 0, 0.2);
+  color: #333;
 }
 
 .qr-input {
@@ -155,7 +199,8 @@ async function saveToFile() {
   resize: vertical;
   font-family: inherit;
   box-sizing: border-box;
-  min-height: calc(1.5em * 5 + 16px);
+  min-height: calc(1.2em * 5 + 16px);
+  line-height: 1.2;
 }
 
 .row {
@@ -217,6 +262,16 @@ button:hover {
   gap: 15px;
 }
 
+.qr-info {
+  display: flex;
+  gap: 20px;
+  font-size: 0.85em;
+  color: #666;
+  background: #eee;
+  padding: 4px 12px;
+  border-radius: 12px;
+}
+
 .save-btn {
   margin-top: 10px;
 }
@@ -267,6 +322,18 @@ button:hover {
   .svg-container,
   .png-container {
     background: #fff; /* Keep QR code white for readability */
+  }
+  .qr-info {
+    background: #333;
+    color: #bbb;
+  }
+  .clear-button {
+    background: rgba(255, 255, 255, 0.1);
+    color: #aaa;
+  }
+  .clear-button:hover {
+    background: rgba(255, 255, 255, 0.2);
+    color: #fff;
   }
 }
 </style>

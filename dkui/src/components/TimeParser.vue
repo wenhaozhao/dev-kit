@@ -157,12 +157,20 @@ watch([timeInput, timeTimezone, timeFormat, timeUnit, timeFormatType], debounce(
 <template>
   <section class="tool-section">
     <div class="row">
-      <input 
-        v-model="timeInput" 
-        placeholder="Enter time string or timestamp..." 
-        :disabled="isUpdating"
-        :class="{ 'is-updating': isUpdating }"
-      />
+      <div class="input-container">
+        <input 
+          v-model="timeInput" 
+          placeholder="Enter time string or timestamp..." 
+          :disabled="isUpdating"
+          :class="{ 'is-updating': isUpdating }"
+        />
+        <button v-if="timeInput && !isUpdating" class="clear-button" @click="timeInput = ''" title="Clear">
+          <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <line x1="18" y1="6" x2="6" y2="18"></line>
+            <line x1="6" y1="6" x2="18" y2="18"></line>
+          </svg>
+        </button>
+      </div>
       <div class="timezone-input-container">
         <input 
           v-model="timeTimezone" 
@@ -254,7 +262,35 @@ watch([timeInput, timeTimezone, timeFormat, timeUnit, timeFormatType], debounce(
   display: flex;
   gap: 10px;
   margin-bottom: 10px;
+}
+
+.input-container {
+  position: relative;
+  flex: 1;
+  display: flex;
+  width: 0;
+}
+
+.clear-button {
+  position: absolute;
+  top: 8px;
+  right: 8px;
+  padding: 4px;
+  background: rgba(0, 0, 0, 0.1);
+  color: #666;
+  border: none;
+  border-radius: 4px;
+  cursor: pointer;
+  display: flex;
   align-items: center;
+  justify-content: center;
+  z-index: 10;
+  transition: background 0.2s, color 0.2s;
+}
+
+.clear-button:hover {
+  background: rgba(0, 0, 0, 0.2);
+  color: #333;
 }
 
 .format-input-group {
@@ -385,6 +421,8 @@ button:hover {
   word-break: break-all;
   cursor: pointer;
   transition: background-color 0.2s;
+  width: 100%;
+  box-sizing: border-box;
 }
 
 .output:hover {
@@ -400,7 +438,7 @@ button:hover {
   display: flex;
 }
 
-input, select {
+input, textarea, select {
   flex: 1;
   padding: 8px;
   border: 1px solid #ddd;
@@ -408,9 +446,17 @@ input, select {
   background-color: white;
   color: black;
   box-sizing: border-box;
+  height: 36px;
 }
 
-input.is-updating {
+textarea {
+  min-height: calc(1.2em * 5 + 16px);
+  line-height: 1.2;
+  resize: vertical;
+  height: auto;
+}
+
+input.is-updating, textarea.is-updating {
   background-color: #f8f9fa;
   border-color: #e9ecef;
   color: #6c757d;
@@ -444,12 +490,20 @@ input.is-updating {
   .refresh-button:hover.active {
     background-color: #005bb7;
   }
-  input, select, .button-group {
+  .clear-button {
+    background: rgba(255, 255, 255, 0.1);
+    color: #aaa;
+  }
+  .clear-button:hover {
+    background: rgba(255, 255, 255, 0.2);
+    color: #fff;
+  }
+  input, textarea, select, .button-group {
     background-color: #2a2a2a;
     border-color: #444;
     color: #d4d4d4;
   }
-  input.is-updating {
+  input.is-updating, textarea.is-updating {
     background-color: #1a1a1a;
     border-color: #333;
     color: #888;

@@ -5,9 +5,8 @@ fn main() -> Result<(), String> {
     let Workspace {
         target_triple, devkit_bin, ..
     } = get_workspace()?;
-    println!("cargo:rerun-if-changed={}", devkit_bin.display());
-    #[cfg(target_os = "macos")]
-    {
+    if target_triple.to_lowercase().ends_with("darwin") {
+        println!("cargo:rerun-if-changed={}", devkit_bin.display());
         let _ = fs::copy(&devkit_bin, format!("binaries/devkit-{target_triple}")).expect(&format!("failed to copy devkit binary: {}", devkit_bin.display()));
     }
     tauri_build::build();

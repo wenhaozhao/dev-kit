@@ -1,6 +1,8 @@
-use crate::command::qrcode::generator::QrCodeImage;
+use crate::command::qrcode::generator::QrCodeImageVal;
 use crate::command::Command;
 use derive_more::{Deref, FromStr};
+use qrcode::Version;
+use std::ops::Deref;
 use std::path::PathBuf;
 use strum::Display;
 
@@ -23,7 +25,7 @@ QR code version,
     In QR code terminology, Version means the size of the generated image. Larger version means the size of code is larger, and therefore can carry more information.
     A normal QR code version. The parameter should be between 1 and 40.
     QR size: version * 4 + 17
-"#, default_value = "3")]
+"#, default_value = "auto")]
         version: QrVersion,
         #[arg(short, long, help = "QR code output type, alias 'type'", alias = "type", default_value = "text")]
         output_type: OutputType,
@@ -39,8 +41,12 @@ pub struct QrContent(String);
 
 #[derive(Debug, Copy, Clone, Deref)]
 pub struct QrEcLevel(qrcode::EcLevel);
-#[derive(Debug, Copy, Clone, Deref)]
-pub struct QrVersion(qrcode::Version);
+
+#[derive(Debug, Copy, Clone)]
+pub enum QrVersion {
+    Auto,
+    Version(Version),
+}
 
 #[derive(Debug, Copy, Clone, FromStr, Default, Display)]
 pub enum OutputType {
@@ -54,49 +60,54 @@ impl Command for QrCodeCommand {
     fn run(&self) -> crate::Result<()> {
         match self {
             QrCodeCommand::Generate { content, ec_level, version, output_type, file, plain } => {
-                let result = generator::generate(content, *ec_level, *version, *output_type);
-                if !plain {
-                    print!(r#"
+                let result = generator::generate(content, ec_level, version, *output_type);
+                match result {
+                    Ok(result) => {
+                        let show_detail = !plain;
+                        if show_detail {
+                            print!(r#"
 Generate QR Code
 Error correction level: {}
 Version: {}
 Output Type: {}
-"#, ec_level, version, output_type);
-                }
-                match result {
-                    Ok(QrCodeImage::Text(text)) => {
-                        if let Some(file) = file {
-                            match std::fs::write(file, text) {
-                                Ok(_) => {
-                                    if !plain {
-                                        print!("Write QR Code to ")
+"#, result.ec_level, result.version, result.out_put_type());
+                        }
+                        match result.deref() {
+                            QrCodeImageVal::Text(text) => {
+                                if let Some(file) = file {
+                                    match std::fs::write(file, text) {
+                                        Ok(_) => {
+                                            if show_detail {
+                                                print!("Write QR Code to ")
+                                            }
+                                            println!("{}", file.display())
+                                        }
+                                        Err(err) => eprintln!("{}", err)
                                     }
-                                    println!("{}", file.display())
+                                } else {
+                                    println!("{}", text);
                                 }
-                                Err(err) => eprintln!("{}", err)
+                                Ok(())
                             }
-                        } else {
-                            println!("{}", text);
-                        }
-                        Ok(())
-                    }
-                    Ok(QrCodeImage::Image(path)) | Ok(QrCodeImage::Svg(path)) => {
-                        match if let Some(file_path) = file {
-                            std::fs::copy(path, file_path).map(|_| file_path)
-                        } else {
-                            Ok(&path)
-                        } {
-                            Ok(path) => {
-                                if !plain {
-                                    print!("Write QR Code to ")
+                            QrCodeImageVal::Image(path) | QrCodeImageVal::Svg(path) => {
+                                match if let Some(file_path) = file {
+                                    std::fs::copy(path, file_path).map(|_| file_path)
+                                } else {
+                                    Ok(path)
+                                } {
+                                    Ok(path) => {
+                                        if show_detail {
+                                            print!("Write QR Code to ")
+                                        }
+                                        println!("{}", path.display())
+                                    }
+                                    Err(err) => {
+                                        eprintln!("{}", err)
+                                    }
                                 }
-                                println!("{}", path.display())
-                            }
-                            Err(err) => {
-                                eprintln!("{}", err)
+                                Ok(())
                             }
                         }
-                        Ok(())
                     }
                     Err(err) => {
                         eprintln!("Generate QR Code failed, {}", err);
