@@ -11,8 +11,15 @@ impl FromStr for Uri {
     type Err = anyhow::Error;
 
     fn from_str(value: &str) -> Result<Self, Self::Err> {
-        if let Some(string) = read_stdin() {
-            Ok(Self::from_str(&string)?)
+        if value.is_empty()
+            && let Some(string) = read_stdin()
+        {
+            if !string.is_empty() {
+                return Ok(Self::from_str(&string)?);
+            }
+        }
+        if value.is_empty() {
+            Err(anyhow!("Invalid input"))
         } else if let Ok(http_request) = HttpRequest::from_str(value) {
             Ok(Uri::HttpRequest(http_request))
         } else {
@@ -31,12 +38,10 @@ impl Uri {
                 let url = url::Url::try_from(req)?;
                 Ok(percent_decode_str(url.as_str()).decode_utf8()?.to_string())
             }
-            Uri::Url(url) => {
-                Ok(percent_decode_str(url.as_str()).decode_utf8()?.to_string())
-            }
-            Uri::String(string) => {
-                Ok(percent_decode_str(string.as_str()).decode_utf8()?.to_string())
-            }
+            Uri::Url(url) => Ok(percent_decode_str(url.as_str()).decode_utf8()?.to_string()),
+            Uri::String(string) => Ok(percent_decode_str(string.as_str())
+                .decode_utf8()?
+                .to_string()),
         }
     }
 
@@ -56,7 +61,10 @@ impl Uri {
         }
     }
 
-    pub fn parse(&self, filter: &Option<Vec<UriComponent>>) -> crate::Result<Vec<UriComponentValue>> {
+    pub fn parse(
+        &self,
+        filter: &Option<Vec<UriComponent>>,
+    ) -> crate::Result<Vec<UriComponentValue>> {
         let url = url::Url::try_from(self)?;
         let component_values = {
             let schema = url.scheme().to_lowercase().to_string();
@@ -72,19 +80,18 @@ impl Uri {
                 }),
                 UriComponentValue::Host(url.host_str().unwrap_or_default().to_string()),
                 UriComponentValue::Port({
-                    url.port().unwrap_or_else(|| {
-                        match schema.as_str() {
-                            "http" => 80,
-                            "https" => 443,
-                            _ => 0
-                        }
+                    url.port().unwrap_or_else(|| match schema.as_str() {
+                        "http" => 80,
+                        "https" => 443,
+                        _ => 0,
                     })
                 }),
                 UriComponentValue::Path(url.path().to_string()),
                 UriComponentValue::Query({
-                    let vals = url.query().and_then(|q|
-                        serde_urlencoded::from_str::<Vec<(String, String)>>(q).ok()
-                    ).unwrap_or_default();
+                    let vals = url
+                        .query()
+                        .and_then(|q| serde_urlencoded::from_str::<Vec<(String, String)>>(q).ok())
+                        .unwrap_or_default();
                     let mut map = BTreeMap::<QueryPartName, QueryPartVal>::new();
                     for (name, value) in vals {
                         let name = QueryPartName(name.trim().to_string());
@@ -96,73 +103,112 @@ impl Uri {
                         }
                     }
                     map
-                })
+                }),
             ];
             components
         };
         let result = if let Some(filter) = &filter {
-            component_values.into_iter().flat_map(|value| {
-                match value {
+            component_values
+                .into_iter()
+                .flat_map(|value| match value {
                     UriComponentValue::Scheme(_) => {
-                        if filter.iter().any(|it| if let UriComponent::Scheme = it { true } else { false }) {
+                        if filter.iter().any(|it| {
+                            if let UriComponent::Scheme = it {
+                                true
+                            } else {
+                                false
+                            }
+                        }) {
                             Some(value)
                         } else {
                             None
                         }
                     }
                     UriComponentValue::Authority(_) => {
-                        if filter.iter().any(|it| if let UriComponent::Authority = it { true } else { false }) {
+                        if filter.iter().any(|it| {
+                            if let UriComponent::Authority = it {
+                                true
+                            } else {
+                                false
+                            }
+                        }) {
                             Some(value)
                         } else {
                             None
                         }
                     }
                     UriComponentValue::Host(_) => {
-                        if filter.iter().any(|it| if let UriComponent::Host = it { true } else { false }) {
+                        if filter.iter().any(|it| {
+                            if let UriComponent::Host = it {
+                                true
+                            } else {
+                                false
+                            }
+                        }) {
                             Some(value)
                         } else {
                             None
                         }
                     }
                     UriComponentValue::Port(_) => {
-                        if filter.iter().any(|it| if let UriComponent::Port = it { true } else { false }) {
+                        if filter.iter().any(|it| {
+                            if let UriComponent::Port = it {
+                                true
+                            } else {
+                                false
+                            }
+                        }) {
                             Some(value)
                         } else {
                             None
                         }
                     }
                     UriComponentValue::Path(_) => {
-                        if filter.iter().any(|it| if let UriComponent::Path = it { true } else { false }) {
+                        if filter.iter().any(|it| {
+                            if let UriComponent::Path = it {
+                                true
+                            } else {
+                                false
+                            }
+                        }) {
                             Some(value)
                         } else {
                             None
                         }
                     }
                     UriComponentValue::Query(parts) => {
-                        let filter = filter.iter().filter(|&it| {
-                            if let UriComponent::Query(_) = it { true } else { false }
-                        }).collect_vec();
+                        let filter = filter
+                            .iter()
+                            .filter(|&it| {
+                                if let UriComponent::Query(_) = it {
+                                    true
+                                } else {
+                                    false
+                                }
+                            })
+                            .collect_vec();
                         if filter.is_empty() {
                             None
                         } else {
-                            let parts = parts.into_iter().filter(|(k, _)| {
-                                filter.iter().any(|&filter| {
-                                    match filter {
+                            let parts = parts
+                                .into_iter()
+                                .filter(|(k, _)| {
+                                    filter.iter().any(|&filter| match filter {
                                         UriComponent::Query(Some(filter)) => {
                                             k.eq_ignore_ascii_case(filter)
                                         }
-                                        UriComponent::Query(None) => {
-                                            true
-                                        }
-                                        _ => unreachable!()
-                                    }
+                                        UriComponent::Query(None) => true,
+                                        _ => unreachable!(),
+                                    })
                                 })
-                            }).collect_vec();
-                            return Some(UriComponentValue::Query(parts.into_iter().collect::<BTreeMap<_, _>>()));
+                                .collect_vec();
+                            return Some(UriComponentValue::Query(
+                                parts.into_iter().collect::<BTreeMap<_, _>>(),
+                            ));
                         }
                     }
-                }
-            }).collect_vec()
+                })
+                .collect_vec()
         } else {
             component_values
         };
@@ -175,12 +221,8 @@ impl TryFrom<&Uri> for url::Url {
 
     fn try_from(uri: &Uri) -> Result<Self, Self::Error> {
         match uri {
-            Uri::Url(url) => {
-                Ok(url.clone())
-            }
-            Uri::String(string) => {
-                Ok(url::Url::from_str(string)?)
-            }
+            Uri::Url(url) => Ok(url.clone()),
+            Uri::String(string) => Ok(url::Url::from_str(string)?),
             Uri::HttpRequest(req) => {
                 Ok(url::Url::try_from(req).map_err(|_| anyhow!("Invalid http request"))?)
             }
@@ -215,9 +257,14 @@ mod tests {
     #[test]
     fn test_parse_0() {
         let uri = Uri::from_str("https://abc:123@sohu.com/a/b/c?q1=1&q2=a&q2=b").unwrap();
-        let components = uri.parse(
-            &Some(vec!["scheme", "host", "port", "?q1", "q2"].into_iter().flat_map(|it| UriComponent::from_str(it).ok()).collect_vec())
-        ).unwrap();
+        let components = uri
+            .parse(&Some(
+                vec!["scheme", "host", "port", "?q1", "q2"]
+                    .into_iter()
+                    .flat_map(|it| UriComponent::from_str(it).ok())
+                    .collect_vec(),
+            ))
+            .unwrap();
         for component in &components {
             println!("{}=> {}", component.name(), component.string_value());
         }

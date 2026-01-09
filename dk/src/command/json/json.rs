@@ -19,11 +19,15 @@ impl Json {
         } else {
             vec![&*json]
         };
-        let keys = result.iter().flat_map(|it| match it {
-            serde_json::Value::Object(map) => map.keys().map(|k| k.to_string()).collect_vec(),
-            serde_json::Value::Array(_) => vec!["*".to_string()],
-            _ => vec![]
-        }).unique_by(|it| it.clone()).collect_vec();
+        let keys = result
+            .iter()
+            .flat_map(|it| match it {
+                serde_json::Value::Object(map) => map.keys().map(|k| k.to_string()).collect_vec(),
+                serde_json::Value::Array(_) => vec!["*".to_string()],
+                _ => vec![],
+            })
+            .unique_by(|it| it.clone())
+            .collect_vec();
         Ok(keys)
     }
     pub fn beautify(&self, query: Option<&str>) -> crate::Result<String> {
@@ -35,7 +39,7 @@ impl Json {
             serde_json::to_string_pretty(&*json)
         };
         Ok(result.map_err(|err| {
-            log::debug!("{}",err);
+            log::debug!("{}", err);
             anyhow!("Invalid json format")
         })?)
     }
@@ -43,24 +47,35 @@ impl Json {
     pub fn query(&self, query: &str, beauty: bool) -> crate::Result<Vec<String>> {
         let json = Arc::<serde_json::Value>::try_from(self)?;
         let query_result = json.query(query).map_err(|err| {
-            log::debug!("{}",err);
+            log::debug!("{}", err);
             anyhow!("Invalid json path: {query}")
         })?;
-        let arr = query_result.iter().flat_map(|&it| {
-            if beauty {
-                serde_json::to_string_pretty(&it)
-            } else {
-                serde_json::to_string(&it)
-            }.map_err(|err| {
-                log::debug!("{}",err);
-                anyhow!("Invalid json format")
+        let arr = query_result
+            .iter()
+            .flat_map(|&it| {
+                if beauty {
+                    serde_json::to_string_pretty(&it)
+                } else {
+                    serde_json::to_string(&it)
+                }
+                .map_err(|err| {
+                    log::debug!("{}", err);
+                    anyhow!("Invalid json format")
+                })
             })
-        }).collect_vec();
+            .collect_vec();
         Ok(arr)
     }
 
-    pub fn diff(&self, other: &Self, query: Option<&str>, diff_tool: Option<DiffTool>) -> crate::Result<()> {
-        let tmp_dir = env::temp_dir().join("jsondiff").join(chrono::Local::now().format("%Y%m%d%H%M%S%f").to_string());
+    pub fn diff(
+        &self,
+        other: &Self,
+        query: Option<&str>,
+        diff_tool: Option<DiffTool>,
+    ) -> crate::Result<()> {
+        let tmp_dir = env::temp_dir()
+            .join("jsondiff")
+            .join(chrono::Local::now().format("%Y%m%d%H%M%S%f").to_string());
         if tmp_dir.exists() {
             fs::remove_dir_all(&tmp_dir)?;
         }
@@ -85,7 +100,8 @@ impl Json {
                 r#"
 install {} command-line interface, see:
 {}"#,
-                diff_tool, diff_tool.how_to_install()
+                diff_tool,
+                diff_tool.how_to_install()
             )
         }
         Ok(())
@@ -107,10 +123,11 @@ impl Json {
 
 lazy_static! {
     static ref ASYNC_RT: tokio::runtime::Runtime = {
-         tokio::runtime::Builder::new_multi_thread()
-                        .worker_threads(1usize)
-                        .enable_all()
-        .build().unwrap()
+        tokio::runtime::Builder::new_multi_thread()
+            .worker_threads(1usize)
+            .enable_all()
+            .build()
+            .unwrap()
     };
 }
 
@@ -121,23 +138,23 @@ impl TryFrom<&Json> for Arc<serde_json::Value> {
         let json = match input {
             Json::Cmd(input) | Json::String(input) => {
                 let json = serde_json::from_str::<serde_json::Value>(&input).map_err(|err| {
-                    log::debug!("{}",err);
+                    log::debug!("{}", err);
                     anyhow!("Invalid json format")
                 })?;
                 Arc::new(json)
             }
             Json::Path(path) => {
-                let file = fs::File::open(&path).map_err(|err| anyhow!("open file {} failed, {}", path.display(), err))?;
-                let json = serde_json::from_reader::<_, serde_json::Value>(file).map_err(|err| {
-                    log::debug!("{}",err);
-                    anyhow!("Invalid json format")
-                })?;
+                let file = fs::File::open(&path)
+                    .map_err(|err| anyhow!("open file {} failed, {}", path.display(), err))?;
+                let json =
+                    serde_json::from_reader::<_, serde_json::Value>(file).map_err(|err| {
+                        log::debug!("{}", err);
+                        anyhow!("Invalid json format")
+                    })?;
                 Arc::new(json)
             }
-            Json::HttpRequest(http_request) => {
-                Arc::new(http_request.try_into()?)
-            }
-            Json::JsonValue(val) => Arc::clone(val)
+            Json::HttpRequest(http_request) => Arc::new(http_request.try_into()?),
+            Json::JsonValue(val) => Arc::clone(val),
         };
         Ok(json)
     }
@@ -146,22 +163,30 @@ impl TryFrom<&Json> for Arc<serde_json::Value> {
 lazy_static! {
     static ref CMD_SPLIT_PATTERN: regex::Regex = {
         regex::RegexBuilder::new(r"^([\w\d]+).*")
-        .multi_line(true)
-        .case_insensitive(true)
-        .build().unwrap()
+            .multi_line(true)
+            .case_insensitive(true)
+            .build()
+            .unwrap()
     };
 }
 impl FromStr for Json {
     type Err = anyhow::Error;
 
     fn from_str(value: &str) -> Result<Self, Self::Err> {
-        let result = if let Some(string) = read_stdin() {
-            Ok(Self::from_str(&string)?)
+        if let Some(string) = read_stdin() {
+            if !string.is_empty() {
+                return Ok(Self::from_str(&string)?);
+            }
+        }
+        if value.is_empty() {
+            Err(anyhow!("Invalid input"))
         } else if let Ok(http_request) = HttpRequest::from_str(value) {
             Ok(Json::HttpRequest(http_request))
-        } else if let Some(_cmd_path) = CMD_SPLIT_PATTERN.captures(&value)
+        } else if let Some(_cmd_path) = CMD_SPLIT_PATTERN
+            .captures(&value)
             .map(|c| c.extract())
-            .and_then(|(_, [cmd])| which::which(cmd).ok()) {
+            .and_then(|(_, [cmd])| which::which(cmd).ok())
+        {
             Ok(Json::Cmd(run_cmd(value)?))
         } else if let Ok(path) = {
             let path = PathBuf::from_str(value)?;
@@ -174,16 +199,6 @@ impl FromStr for Json {
             Ok(Json::Path(path))
         } else {
             Ok(Json::String(value.to_string()))
-        };
-        match result {
-            Ok(json) => {
-                log::debug!("guess str to Json ok, {} => str: {value}", json.name());
-                Ok(json)
-            }
-            Err(err) => {
-                log::debug!("guess str to Json failed, str: {value}, err: {err}");
-                Err(err)
-            }
         }
     }
 }
@@ -201,15 +216,19 @@ fn run_cmd(value: &str) -> crate::Result<String> {
         .arg("-c")
         .arg(value)
         .output()
-        .map_err(|err| anyhow!(r#"
+        .map_err(|err| {
+            anyhow!(
+                r#"
 failed to execute command: {}
 {}
-"#, err, value
-                ))?;
+"#,
+                err,
+                value
+            )
+        })?;
     if output.status.success() {
-        let stdout = String::from_utf8(output.stdout).map_err(|err|
-            anyhow!("failed to parse output as UTF-8: {}", err)
-        )?;
+        let stdout = String::from_utf8(output.stdout)
+            .map_err(|err| anyhow!("failed to parse output as UTF-8: {}", err))?;
         Ok(stdout)
     } else {
         let stderr = String::from_utf8_lossy(&output.stderr);
@@ -353,6 +372,11 @@ mod tests {
         // command exists but fails
         let result = run_cmd("ls /non_existent_directory_12345");
         assert!(result.is_err());
-        assert!(result.unwrap_err().to_string().contains("run command failed"));
+        assert!(
+            result
+                .unwrap_err()
+                .to_string()
+                .contains("run command failed")
+        );
     }
 }

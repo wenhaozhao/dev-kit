@@ -7,17 +7,17 @@ use std::collections::BTreeMap;
 pub enum UriCommand {
     #[clap(about = "decode uri component, alias d", alias = "d")]
     Decode {
-        #[arg(help = "uri component to decode", default_value = "-")]
+        #[arg(help = "uri component to decode", default_value = "")]
         uri: Uri
     },
     #[clap(about = "encode uri component, alias e", alias = "e")]
     Encode {
-        #[arg(help = "uri component to encode", default_value = "-")]
+        #[arg(help = "uri component to encode", default_value = "")]
         uri: Uri
     },
     #[clap(about = "parse uri component, alias p", alias = "p")]
     Parse {
-        #[arg(help = "uri component to encode", default_value = "-")]
+        #[arg(help = "uri component to encode", default_value = "")]
         uri: Uri,
         #[arg(long, help = "component filter of uri: scheme, authority, host, port, path, query", value_delimiter = ',')]
         filter: Option<Vec<UriComponent>>,

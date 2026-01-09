@@ -1,4 +1,4 @@
-use crate::command::Command;
+use crate::command::{Command, StringInput};
 use crate::command::qrcode::generator::QrCodeImageVal;
 use derive_more::{Deref, FromStr};
 use qrcode::Version;
@@ -50,8 +50,8 @@ pub struct QrCodeArgs {
     plain: bool,
 }
 
-#[derive(Debug, Clone, Deref)]
-pub struct QrContent(String);
+#[derive(Debug, Clone, Deref, FromStr)]
+pub struct QrContent(StringInput);
 
 #[derive(Debug, Copy, Clone, Deref)]
 pub struct QrEcLevel(qrcode::EcLevel);

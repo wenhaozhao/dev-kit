@@ -10,7 +10,7 @@ use strum::EnumIter;
 pub enum JsonCommand {
     #[clap(about = "json beautify, alias 'format'", alias = "format")]
     Beauty {
-        #[arg(help = "json input, support string, file-path, url, cmd", default_value = "-")]
+        #[arg(help = "json input, support string, file-path, url, cmd", default_value = "")]
         json: Json,
         #[arg(short, long, help = "json path to extract")]
         query: Option<String>,
@@ -19,7 +19,7 @@ pub enum JsonCommand {
     },
     #[clap(about = "json query, alias 'search'", alias = "search")]
     Query {
-        #[arg(help = "json input, support string, file-path, url, cmd", default_value = "-")]
+        #[arg(help = "json input, support string, file-path, url, cmd", default_value = "")]
         json: Json,
         #[arg(short, long, help = "json path to extract")]
         query: String,
@@ -30,9 +30,9 @@ pub enum JsonCommand {
     },
     #[clap(about = "json diff with left and right")]
     Diff {
-        #[arg(help = "json input, support string, file-path, url, cmd", default_value = "-")]
+        #[arg(help = "json input, support string, file-path, url, cmd", default_value = "")]
         left: Json,
-        #[arg(help = "json input, support string, file-path, url, cmd", default_value = "-")]
+        #[arg(help = "json input, support string, file-path, url, cmd", default_value = "")]
         right: Json,
         #[arg(short, long, help = "json path to extract")]
         query: Option<String>,
@@ -89,18 +89,6 @@ pub enum Json {
     String(String),
     #[display("{}", _0.to_string())]
     JsonValue(Arc<serde_json::Value>),
-}
-
-impl Json {
-    fn name(&self) -> &'static str {
-        match self {
-            Json::Cmd(_) => "Cmd",
-            Json::HttpRequest(_) => "HttpRequest",
-            Json::Path(_) => "Path",
-            Json::String(_) => "String",
-            Json::JsonValue(_) => "JsonValue",
-        }
-    }
 }
 
 mod json;

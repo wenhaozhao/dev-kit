@@ -19,7 +19,7 @@ pub enum TimeCommand {
     },
     #[clap(about = "time paser")]
     Parse {
-        #[arg(help = "input time, support unix-timestamp or string time, eg. 2023-01-01 12:00:00", default_value = "-")]
+        #[arg(help = "input time, support unix-timestamp or string time, eg. 2023-01-01 12:00:00", default_value = "")]
         time: Time,
         #[arg(long, help = "input unix-timestamp unit, s or ms, alias iu, default to ms", alias = "iu")]
         input_unit: Option<TimestampUnit>,
@@ -142,13 +142,16 @@ impl FromStr for Time {
 
     fn from_str(value: &str) -> Result<Self, Self::Err> {
         if let Some(string) = read_stdin() {
-            Ok(Self::from_str(string.trim())?)
-        } else {
-            if let Ok(val) = value.parse::<i64>() {
-                Ok(Self::Timestamp(val.into()))
-            } else {
-                Ok(Self::StringTime(value.to_string().into()))
+            if !string.is_empty() {
+                return Ok(Self::from_str(&string)?);
             }
+        }
+        if value.is_empty() {
+            Err(anyhow!("Invalid input"))
+        } else if let Ok(val) = value.parse::<i64>() {
+            Ok(Self::Timestamp(val.into()))
+        } else {
+            Ok(Self::StringTime(value.to_string().into()))
         }
     }
 }

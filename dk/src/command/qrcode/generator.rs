@@ -1,6 +1,4 @@
 use crate::command::qrcode::{OutputType, QrContent, QrEcLevel, QrVersion};
-use crate::command::read_stdin;
-use anyhow::anyhow;
 use derive_more::Deref;
 use image::Luma;
 use qrcode::render::{svg, unicode};
@@ -17,10 +15,11 @@ pub fn generate<'a>(
     version: &'a QrVersion,
     output_type: OutputType,
 ) -> crate::Result<QrCodeImage<'a>> {
-    let (qr_code, version) = create_qr_code(content.as_str(), version, ec_level)?;
+    let (qr_code, version) = create_qr_code(content, version, ec_level)?;
     let image = match output_type {
         OutputType::Text => {
-            let image = qr_code.render::<unicode::Dense1x2>()
+            let image = qr_code
+                .render::<unicode::Dense1x2>()
                 .dark_color(unicode::Dense1x2::Light)
                 .light_color(unicode::Dense1x2::Dark)
                 .build();
@@ -29,7 +28,8 @@ pub fn generate<'a>(
         OutputType::Image => {
             let image = {
                 let image = qr_code.render::<Luma<u8>>().build();
-                let path = std::env::temp_dir().join(format!("qrcode-{}.png", uuid::Uuid::new_v4()));
+                let path =
+                    std::env::temp_dir().join(format!("qrcode-{}.png", uuid::Uuid::new_v4()));
                 let _ = image.save(&path)?;
                 path
             };
@@ -37,12 +37,14 @@ pub fn generate<'a>(
         }
         OutputType::Svg => {
             let image = {
-                let image = qr_code.render()
+                let image = qr_code
+                    .render()
                     .min_dimensions(200, 200)
                     .dark_color(svg::Color("#800000"))
                     .light_color(svg::Color("#ffff80"))
                     .build();
-                let path = std::env::temp_dir().join(format!("qrcode-{}.svg", uuid::Uuid::new_v4()));
+                let path =
+                    std::env::temp_dir().join(format!("qrcode-{}.svg", uuid::Uuid::new_v4()));
                 let _ = std::fs::write(&path, image.as_bytes())?;
                 path
             };
@@ -57,7 +59,11 @@ pub fn generate<'a>(
     })
 }
 
-fn create_qr_code(content_str: &str, qr_version: &QrVersion, qr_ec_level: &QrEcLevel) -> Result<(QrCode, QrVersion), QrError> {
+fn create_qr_code(
+    content_str: &str,
+    qr_version: &QrVersion,
+    qr_ec_level: &QrEcLevel,
+) -> Result<(QrCode, QrVersion), QrError> {
     let mut version = match qr_version {
         QrVersion::Auto => Version::Normal(3),
         QrVersion::Version(val) => *val,
@@ -68,37 +74,22 @@ fn create_qr_code(content_str: &str, qr_version: &QrVersion, qr_ec_level: &QrEcL
             Ok(val) => {
                 return Ok((val, QrVersion::Version(version)));
             }
-            Err(QrError::DataTooLong) => {
-                match qr_version {
-                    QrVersion::Auto => {
-                        version = match version {
-                            Version::Normal(val) => Version::Normal(val + 1),
-                            Version::Micro(val) => Version::Micro(val + 1),
-                        };
-                        continue;
-                    }
-                    _ => return Err(QrError::DataTooLong)
+            Err(QrError::DataTooLong) => match qr_version {
+                QrVersion::Auto => {
+                    version = match version {
+                        Version::Normal(val) => Version::Normal(val + 1),
+                        Version::Micro(val) => Version::Micro(val + 1),
+                    };
+                    continue;
                 }
-            }
+                _ => return Err(QrError::DataTooLong),
+            },
             Err(QrError::InvalidVersion) => {
                 return Err(QrError::DataTooLong);
             }
             Err(err) => {
                 return Err(err);
             }
-        }
-    }
-}
-
-impl FromStr for QrContent {
-    type Err = anyhow::Error;
-
-    fn from_str(value: &str) -> Result<Self, Self::Err> {
-        let input = read_stdin().unwrap_or(value.to_string());
-        if input.is_empty() {
-            Err(anyhow!("input is empty"))
-        } else {
-            Ok(Self(input))
         }
     }
 }
@@ -113,7 +104,7 @@ impl FromStr for QrEcLevel {
             "1" | "15" | "15%" | "m" => Self(EcLevel::M),
             "2" | "25" | "25%" | "q" => Self(EcLevel::Q),
             "3" | "30" | "30%" | "h" => Self(EcLevel::H),
-            _ => Self::default()
+            _ => Self::default(),
         })
     }
 }
@@ -142,11 +133,10 @@ impl FromStr for QrVersion {
         let s = s.to_lowercase();
         match s.as_str() {
             "auto" => Ok(Self::Auto),
-            val => {
-                Ok(val.parse::<u8>().map(|it|
-                    Self::Version(Version::Normal(it as i16))
-                ).unwrap_or_default())
-            }
+            val => Ok(val
+                .parse::<u8>()
+                .map(|it| Self::Version(Version::Normal(it as i16)))
+                .unwrap_or_default()),
         }
     }
 }
@@ -155,7 +145,8 @@ impl Display for QrVersion {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
         match self {
             Self::Auto => write!(f, "Auto"),
-            Self::Version(val @ Version::Normal(int_val)) | Self::Version(val @ Version::Micro(int_val)) => {
+            Self::Version(val @ Version::Normal(int_val))
+            | Self::Version(val @ Version::Micro(int_val)) => {
                 write!(f, "{} ({}*{})", int_val, val.width(), val.width())
             }
         }
@@ -182,7 +173,6 @@ pub enum QrCodeImageVal {
     Image(PathBuf),
     Svg(PathBuf),
 }
-
 
 impl Display for QrCodeImage<'_> {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
