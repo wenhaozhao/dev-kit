@@ -7,10 +7,26 @@ A collection of utilities and tools for development.
 ## Features
 
 ### 1. URI Tools
-- **Decode**: Decode URI components.
+- **Decode**: Decode URI components. Supports alias `d`.
   ```shell
   $ devkit uri decode 'foo%20bar'
   foo bar
+  ```
+- **Encode**: Encode URI components. Supports alias `e`.
+  ```shell
+  $ devkit uri encode 'foo bar'
+  foo%20bar
+  ```
+- **Parse**: Parse URI and extract components. Supports alias `p`.
+  ```shell
+  $ devkit uri parse 'https://example.com/path?a=1&b=2'
+  scheme: https
+  host: example.com
+  port: 443
+  path: /path
+  query:
+     a=1
+     b=2
   ```
 
 ### 2. JSON Tools
@@ -59,6 +75,10 @@ All JSON tools support the following input types:
   ```shell
   $ devkit json diff '{"a":1}' '{"a":2}' --diff-tool vscode
   ```
+- **Options**:
+    - `-q, --query <JSONPATH>`: Extract content using JSONPath before processing.
+    - `-f, --file <FILE>`: Write output to a file (for Beauty and Query).
+    - `--diff-tool <TOOL>`: Diff tool to use: `idea`, `vscode`, `zed`, etc.
 
 ### 3. Time Tools
 - **Now**: Get the current time, supports specified timezones and formats.
@@ -70,6 +90,9 @@ All JSON tools support the following input types:
   # Get current millisecond timestamp
   $ devkit time now -f ts
   1698372000000
+
+  # Get current time with custom format
+  $ devkit time now -f "%Y-%m-%d %H:%M:%S"
   ```
 - **Parse**: Parse time strings or timestamps.
   ```shell
@@ -81,6 +104,43 @@ All JSON tools support the following input types:
   $ devkit time parse "2023-10-27 10:00:00" -f ts
   1698372000000
   ```
+- **Options**:
+    - `-z, --tz <TIMEZONE>`: Specify timezone (e.g., `+08:00`).
+    - `-f, --format <FORMAT>`: Output format: `rfc3339`, `ts`, or custom format (e.g., `%Y-%m-%d`).
+    - `--iu, --input-unit <UNIT>`: Input timestamp unit: `s`, `ms`.
+    - `--ou, --output-unit <UNIT>`: Output timestamp unit: `s`, `ms`.
+
+### 4. Base64 Tools
+- **Encode**: Encode string to Base64. Supports alias `e`.
+  ```shell
+  $ devkit base64 encode 'hello world'
+  aGVsbG8gd29ybGQ=
+  ```
+- **Decode**: Decode Base64 string. Supports alias `d`.
+  ```shell
+  $ devkit base64 decode 'aGVsbG8gd29ybGQ='
+  hello world
+  ```
+- **Options**:
+    - `-u, --url-safe`: Use URL-safe Base64.
+    - `-n, --no-pad`: No padding.
+    - `-f, --file <FILE>`: Write output to a file.
+
+### 5. QR Code Tools
+Generate QR codes from text or URLs. Supports alias `qrcode`, `qr`.
+- **Generate**:
+  ```shell
+  # Output as text (default)
+  $ devkit qrcode 'https://github.com'
+
+  # Save as image
+  $ devkit qrcode 'https://github.com' -t image -f qr.png
+  ```
+- **Options**:
+    - `-t, --type <TYPE>`: Output type: `text` (default), `image`, `svg`.
+    - `-e, --ec-level <LEVEL>`: Error correction level: `l` (7%), `m` (15%), `q` (25%), `h` (30%).
+    - `-v, --version <VERSION>`: QR code version (1-40).
+    - `-p, --plain`: Plain text output without details.
 
 ## Installation
 
