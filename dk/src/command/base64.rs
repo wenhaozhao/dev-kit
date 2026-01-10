@@ -1,7 +1,9 @@
 use crate::command::StringInput;
 use base64::Engine;
 use itertools::Itertools;
+use std::fs;
 use std::path::PathBuf;
+use std::str::FromStr;
 
 #[derive(clap::Subcommand)]
 pub enum Base64Command {
@@ -73,7 +75,12 @@ impl super::Command for Base64Command {
     fn run(&self) -> crate::Result<()> {
         match self {
             Self::Decode { input, url_safe, no_pad, raw_output, file } => {
-                let data = decode(input, *url_safe, *no_pad)?;
+                let input = if let Some(input) = PathBuf::from_str(input).ok().and_then(|p| fs::read_to_string(p).ok()) {
+                    input
+                } else {
+                    input.to_string()
+                };
+                let data = decode(&input, *url_safe, *no_pad)?;
                 match (*raw_output, file) {
                     (false, None) => {
                         let text = String::from_utf8_lossy(&data);
@@ -97,7 +104,12 @@ impl super::Command for Base64Command {
                 }
             }
             Self::Encode { input, url_safe, no_pad, file } => {
-                let text = encode(input.as_bytes(), *url_safe, *no_pad)?;
+                let input = if let Some(input) = PathBuf::from_str(input).ok().and_then(|p| fs::read(p).ok()) {
+                    input
+                } else {
+                    input.as_bytes().to_vec()
+                };
+                let text = encode(&input, *url_safe, *no_pad)?;
                 if let Some(file) = file {
                     let _ = std::fs::write(file, text)?;
                     println!("write to {}", file.display())
