@@ -4,7 +4,6 @@ use itertools::Itertools;
 use os_xtask_utils::{Cargo, CommandExt};
 use std::{env, fs};
 use std::path::{Path, PathBuf};
-use std::process::exit;
 use std::str::FromStr;
 use strum::{EnumIter, IntoEnumIterator};
 
@@ -17,7 +16,7 @@ struct Cli {
     #[clap(long, default_value = "false")]
     no_default_features: bool,
     #[clap(long)]
-    target: Option<String>,
+    target: Option<BuildTarget>,
     #[clap(long, default_value = "false")]
     verbose: bool,
 }
@@ -81,13 +80,7 @@ fn main() {
         Cargo::update().invoke();
     }
     let targets = if let Some(target) = &target {
-        match BuildTarget::from_str(target) {
-            Ok(it) => vec![it],
-            Err(err) => {
-                eprintln!("Error: {}", err);
-                exit(0);
-            }
-        }
+        vec![*target]
     } else {
         BuildTarget::default_targets().to_vec()
     };

@@ -7,7 +7,15 @@ fn main() -> Result<(), String> {
     } = get_workspace()?;
     if target_triple.to_lowercase().ends_with("darwin") {
         println!("cargo:rerun-if-changed={}", devkit_bin.display());
-        let _ = fs::copy(&devkit_bin, format!("binaries/devkit-{target_triple}")).expect(&format!("failed to copy devkit binary: {}", devkit_bin.display()));
+        let dst_bin_path = {
+            let path = PathBuf::from(format!("binaries/devkit-{target_triple}"));
+            let parent = path.parent().expect(&format!("failed to get parent directory, path: {}", path.display()));
+            if !parent.exists() {
+                fs::create_dir_all(&parent).expect(&format!("failed to create directory: {}", parent.display()));
+            }
+            path
+        };
+        let _ = fs::copy(&devkit_bin, &dst_bin_path).expect(&format!("failed to copy devkit binary: {}", devkit_bin.display()));
     }
     tauri_build::build();
     Ok(())
