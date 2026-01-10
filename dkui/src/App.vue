@@ -9,6 +9,7 @@ import UriParser from "./components/UriParser.vue";
 import UriDecoder from "./components/UriDecoder.vue";
 import TimeParser from "./components/TimeParser.vue";
 import QrCodeGenerator from "./components/QrCodeGenerator.vue";
+import Base64Parser from "./components/Base64Parser.vue";
 
 const jsonInput = ref("");
 const jsonRightInput = ref("");
@@ -64,6 +65,7 @@ function updateQuery(val) {
       <button :class="{ active: currentTab === 'uri_decoder' }" @click="currentTab = 'uri_decoder'">URI Decoder</button>
       <button :class="{ active: currentTab === 'time' }" @click="currentTab = 'time'">Time Parser</button>
       <button :class="{ active: currentTab === 'qrcode' }" @click="currentTab = 'qrcode'">QR Code</button>
+      <button :class="{ active: currentTab === 'base64' }" @click="currentTab = 'base64'">Base64</button>
       <a href="#" class="github-link" @click.prevent="addToPath" title="Add devkit(dk) to Path" v-if="is_show_add_to_path_bth">
         <svg height="24" viewBox="0 0 24 24" width="24" fill="currentColor">
           <path d="M20,19V7H4V19H20M20,3A2,2 0 0,1 22,5V19A2,2 0 0,1 20,21H4A2,2 0 0,1 2,19V5C2,3.89 2.9,3 4,3H20M13,17V15H18V17H13M9.58,13L5.57,9H8.4L11.7,12.3C12.09,12.69 12.09,13.33 11.7,13.72L8.42,17H5.59L9.58,13Z" />
@@ -108,6 +110,10 @@ function updateQuery(val) {
 
     <KeepAlive>
       <QrCodeGenerator v-if="currentTab === 'qrcode'" />
+    </KeepAlive>
+
+    <KeepAlive>
+      <Base64Parser v-if="currentTab === 'base64'" />
     </KeepAlive>
   </main>
 </template>

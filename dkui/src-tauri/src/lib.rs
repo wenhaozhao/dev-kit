@@ -275,6 +275,17 @@ lazy_static! {
     };
 }
 #[tauri::command]
+fn base64_decode(input: String, url_safe: bool, no_pad: bool) -> Result<String, String> {
+    let data = devkit::command::base64::decode(&input, url_safe, no_pad).map_err(|e| e.to_string())?;
+    Ok(String::from_utf8_lossy(&data).to_string())
+}
+
+#[tauri::command]
+fn base64_encode(input: String, url_safe: bool, no_pad: bool) -> Result<String, String> {
+    devkit::command::base64::encode(input.as_bytes(), url_safe, no_pad).map_err(|e| e.to_string())
+}
+
+#[tauri::command]
 fn show_add_to_path_bth() -> Result<String, String> {
     let devkit_path_ptr = DEVKIT_PATH.load(Ordering::Relaxed);
     if devkit_path_ptr.is_null() {
@@ -368,7 +379,9 @@ pub fn run() {
             save_image_to_file,
             show_add_to_path_bth,
             add_to_path,
-            generate_qrcode
+            generate_qrcode,
+            base64_decode,
+            base64_encode
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
