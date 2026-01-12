@@ -1,8 +1,10 @@
 <script setup>
-import { ref, onMounted, watch } from "vue";
+import { ref, onMounted, watch, computed } from "vue";
 import { invoke } from "@tauri-apps/api/core";
 import { save } from "@tauri-apps/plugin-dialog";
 import { useDebounce } from "../composables/useDebounce";
+import VueJsonPretty from 'vue-json-pretty';
+import 'vue-json-pretty/lib/styles.css';
 
 const props = defineProps({
   initialJson: String,
@@ -21,6 +23,18 @@ const showSuggestions = ref(false);
 const { debounce } = useDebounce();
 
 const lastSuccessfulOutput = ref("");
+
+const parsedJsonOutput = computed(() => {
+  if (!jsonOutput.value || jsonOutput.value.startsWith("Error: ")) {
+    return null;
+  }
+  try {
+    return JSON.parse(jsonOutput.value);
+  } catch (e) {
+    // If it's not valid JSON (e.g. multi-line string from query), return as is or handle
+    return jsonOutput.value;
+  }
+});
 
 async function formatJson(input, outputRef) {
   try {
@@ -180,7 +194,15 @@ onMounted(() => {
       </div>
     </div>
     <div class="json-outputs">
-      <pre v-if="jsonOutput" class="output">{{ jsonOutput }}</pre>
+      <div v-if="jsonOutput" class="output">
+        <div v-if="jsonOutput.startsWith('Error: ')" class="error-msg">{{ jsonOutput }}</div>
+        <vue-json-pretty
+          v-else
+          :data="parsedJsonOutput"
+          :show-length="true"
+          :deep="3"
+        />
+      </div>
     </div>
   </section>
 </template>
@@ -276,6 +298,13 @@ button:hover {
   border-radius: 4px;
   white-space: pre-wrap;
   word-break: break-all;
+  overflow: auto;
+}
+
+.error-msg {
+  color: #f44336;
+  white-space: pre-wrap;
+  word-break: break-all;
 }
 
 .query-row {
@@ -311,6 +340,18 @@ button:hover {
   .output {
     background-color: #1e1e1e;
     color: #d4d4d4;
+  }
+  :deep(.vjs-tree-node:hover) {
+    background-color: #3e3e3e;
+  }
+  :deep(.vjs-value__string) {
+    color: #ce9178;
+  }
+  :deep(.vjs-value__number) {
+    color: #b5cea8;
+  }
+  :deep(.vjs-key) {
+    color: #9cdcfe;
   }
   .tool-section {
     border-color: #444;
