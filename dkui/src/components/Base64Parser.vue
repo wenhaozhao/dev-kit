@@ -1,12 +1,15 @@
 <script setup>
-import { ref, watch } from "vue";
+import { ref, watch, onMounted } from "vue";
 import { invoke } from "@tauri-apps/api/core";
+import { listen } from "@tauri-apps/api/event";
+import { open } from "@tauri-apps/plugin-dialog";
 
 const input = ref("");
 const output = ref("");
 const mode = ref("decode"); // decode, encode
 const urlSafe = ref(false);
 const noPad = ref(false);
+const isDragging = ref(false);
 
 let debounceTimer = null;
 function debounce(fn, delay = 300) {
@@ -16,9 +19,65 @@ function debounce(fn, delay = 300) {
   };
 }
 
+async function processFile(path) {
+  try {
+    if (mode.value === 'encode') {
+      // 编码模式下，直接读取文件并转为 base64
+      input.value = "Reading file...";
+      const res = await invoke("read_file_base64", { 
+        path,
+        urlSafe: urlSafe.value,
+        noPad: noPad.value
+      });
+      // 注意：这里我们可能想要把编码结果放在 output 还是 input？
+      // 用户拖入文件通常是想“得到它的 base64”。
+      // 如果我们把结果放在 input，那么 handleBase64 会再次触发。
+      // 更好的做法是：如果是编码模式，我们把结果显示在 output，
+      // 但由于我们的 handleBase64 是 watch input 的，所以我们需要一些技巧。
+      
+      // 方案：直接设置 output，并清空 input（或保持 input 为文件名）
+      input.value = `File: ${path}`;
+      output.value = res;
+    } else {
+      // 解码模式下，读取文件内容作为输入
+      const content = await invoke("read_file_content", { path });
+      input.value = content;
+    }
+  } catch (e) {
+    output.value = "Error reading file: " + e;
+  }
+}
+
+async function openFile() {
+  const selected = await open({
+    multiple: false,
+    directory: false,
+  });
+  if (selected) {
+    await processFile(selected);
+  }
+}
+
+onMounted(async () => {
+  await listen("tauri://drag-drop", (event) => {
+    isDragging.value = false;
+    const paths = event.payload.paths;
+    if (paths && paths.length > 0) {
+      processFile(paths[0]);
+    }
+  });
+
+  await listen("tauri://drag-over", () => {
+    isDragging.value = true;
+  });
+
+  await listen("tauri://drag-leave", () => {
+    isDragging.value = false;
+  });
+});
+
 async function handleBase64() {
-  if (!input.value) {
-    output.value = "";
+  if (!input.value || input.value.startsWith("File: ")) {
     return;
   }
 
@@ -77,14 +136,22 @@ watch([input, mode, urlSafe, noPad], debounce(() => {
 <template>
   <section class="tool-section">
     <div class="row">
-      <div class="textarea-container">
-        <textarea v-model="input" :placeholder="`Enter text to ${mode}...`" rows="5"></textarea>
-        <button v-if="input" class="clear-button" @click="input = ''" title="Clear">
-          <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-            <line x1="18" y1="6" x2="6" y2="18"></line>
-            <line x1="6" y1="6" x2="18" y2="18"></line>
-          </svg>
-        </button>
+      <div class="textarea-container" :class="{ dragging: isDragging }">
+        <textarea v-model="input" :placeholder="`Enter text or drop file to ${mode}...`" rows="5"></textarea>
+        <div class="textarea-actions">
+          <button class="action-button" @click="openFile" title="Open File">
+            <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <path d="M13 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V9z"></path>
+              <polyline points="13 2 13 9 20 9"></polyline>
+            </svg>
+          </button>
+          <button v-if="input" class="action-button" @click="input = ''; output = ''" title="Clear">
+            <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <line x1="18" y1="6" x2="6" y2="18"></line>
+              <line x1="6" y1="6" x2="18" y2="18"></line>
+            </svg>
+          </button>
+        </div>
       </div>
     </div>
     
@@ -155,12 +222,23 @@ textarea {
   resize: vertical;
 }
 
-.clear-button {
+.textarea-container.dragging textarea {
+  border-color: #007aff;
+  background-color: rgba(0, 122, 255, 0.05);
+}
+
+.textarea-actions {
   position: absolute;
   top: 8px;
   right: 8px;
+  display: flex;
+  gap: 4px;
+  z-index: 10;
+}
+
+.action-button {
   padding: 4px;
-  background: rgba(0, 0, 0, 0.1);
+  background: rgba(0, 0, 0, 0.05);
   color: #666;
   border: none;
   border-radius: 4px;
@@ -168,12 +246,11 @@ textarea {
   display: flex;
   align-items: center;
   justify-content: center;
-  z-index: 10;
   transition: background 0.2s, color 0.2s;
 }
 
-.clear-button:hover {
-  background: rgba(0, 0, 0, 0.2);
+.action-button:hover {
+  background: rgba(0, 0, 0, 0.15);
   color: #333;
 }
 
@@ -304,13 +381,16 @@ button:hover:not(.active) {
   .checkbox-group {
     color: #aaa;
   }
-  .clear-button {
-    background: rgba(255, 255, 255, 0.1);
+  .action-button {
+    background: rgba(255, 255, 255, 0.05);
     color: #aaa;
   }
-  .clear-button:hover {
-    background: rgba(255, 255, 255, 0.2);
+  .action-button:hover {
+    background: rgba(255, 255, 255, 0.15);
     color: #fff;
+  }
+  .textarea-container.dragging textarea {
+    background-color: rgba(0, 122, 255, 0.1);
   }
 }
 </style>
