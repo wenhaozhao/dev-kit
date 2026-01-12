@@ -291,7 +291,6 @@ textarea {
   flex: 1;
   cursor: pointer;
   transition: background-color 0.2s;
-  width: 0;
 }
 
 .component-value:hover {
