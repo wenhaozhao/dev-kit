@@ -1,7 +1,8 @@
 <script setup>
 import { ref, onMounted, watch, computed } from "vue";
 import { invoke } from "@tauri-apps/api/core";
-import { save } from "@tauri-apps/plugin-dialog";
+import { listen } from "@tauri-apps/api/event";
+import { save, open } from "@tauri-apps/plugin-dialog";
 import { useDebounce } from "../composables/useDebounce";
 import VueJsonPretty from 'vue-json-pretty';
 import 'vue-json-pretty/lib/styles.css';
@@ -24,6 +25,8 @@ const availableDiffTools = ref([]);
 const jsonKeys = ref([]);
 const selectedIndex = ref(-1);
 const showSuggestions = ref(false);
+const isDraggingLeft = ref(false);
+const isDraggingRight = ref(false);
 
 const leftTextarea = ref(null);
 const rightTextarea = ref(null);
@@ -67,7 +70,6 @@ onMounted(async () => {
   }
 
   // Sync textarea heights
-  let observer = null;
   const syncHeight = (entries) => {
     if (isSyncing) return;
     isSyncing = true;
@@ -79,15 +81,40 @@ onMounted(async () => {
     setTimeout(() => { isSyncing = false; }, 0);
   };
 
-  if (!observer) {
-    observer = new ResizeObserver(syncHeight);
-  }
+  let observer = new ResizeObserver(syncHeight);
   if (leftTextarea.value) observer.observe(leftTextarea.value);
   if (rightTextarea.value) observer.observe(rightTextarea.value);
 
   if (jsonInput.value || jsonRightInput.value) {
     queryJson();
   }
+
+  await listen("tauri://drag-drop", (event) => {
+    isDraggingLeft.value = false;
+    isDraggingRight.value = false;
+    const paths = event.payload.paths;
+    if (paths && paths.length > 0) {
+      // Logic for determining which side to drop into:
+      // Since it's a split screen, we might need to check mouse position or target element.
+      // However, the standard `tauri://drag-drop` doesn't easily give target element.
+      // For now, let's use the `isDraggingLeft/Right` states set by `tauri://drag-over`.
+      if (isDraggingLeft.value) {
+        processFile(paths[0], jsonInput);
+      } else if (isDraggingRight.value) {
+        processFile(paths[0], jsonRightInput);
+      }
+    }
+  });
+
+  await listen("tauri://drag-over", (event) => {
+    // We can't easily tell which side it's over from the global event.
+    // We'll rely on HTML drag events for the visual part and setting the state.
+  });
+
+  await listen("tauri://drag-leave", () => {
+    isDraggingLeft.value = false;
+    isDraggingRight.value = false;
+  });
 });
 
 async function formatJson(input, outputRef) {
@@ -95,6 +122,35 @@ async function formatJson(input, outputRef) {
     outputRef.value = await invoke("format_json", { json: input });
   } catch (e) {
     outputRef.value = "Error: " + e;
+  }
+}
+
+async function processFile(path, inputRef) {
+  console.log(path);
+  try {
+    inputRef.value = path;
+  } catch (e) {
+    console.error("Error reading file:", e);
+  }
+}
+
+async function openLeftFile() {
+  const selected = await open({
+    multiple: false,
+    directory: false,
+  });
+  if (selected) {
+    await processFile(selected, jsonInput);
+  }
+}
+
+async function openRightFile() {
+  const selected = await open({
+    multiple: false,
+    directory: false,
+  });
+  if (selected) {
+    await processFile(selected, jsonRightInput);
   }
 }
 
@@ -263,23 +319,45 @@ watch([jsonInput, jsonRightInput, jsonQuery], debounce(() => {
 <template>
   <section class="tool-section">
     <div class="json-inputs">
-      <div class="textarea-container">
+      <div class="textarea-container" :class="{ dragging: isDraggingLeft }"
+        @dragover="isDraggingLeft = true"
+        @dragleave="isDraggingLeft = false"
+        @drop="isDraggingLeft = false">
         <textarea ref="leftTextarea" v-model="jsonInput" placeholder="Enter JSON (Left)..." rows="5"></textarea>
-        <button v-if="jsonInput" class="clear-button" @click="jsonInput = ''" title="Clear">
-          <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-            <line x1="18" y1="6" x2="6" y2="18"></line>
-            <line x1="6" y1="6" x2="18" y2="18"></line>
-          </svg>
-        </button>
+        <div class="textarea-actions">
+          <button class="action-button" @click="openLeftFile" title="Open File">
+            <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <path d="M13 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V9z"></path>
+              <polyline points="13 2 13 9 20 9"></polyline>
+            </svg>
+          </button>
+          <button v-if="jsonInput" class="action-button" @click="jsonInput = ''" title="Clear">
+            <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <line x1="18" y1="6" x2="6" y2="18"></line>
+              <line x1="6" y1="6" x2="18" y2="18"></line>
+            </svg>
+          </button>
+        </div>
       </div>
-      <div class="textarea-container">
+      <div class="textarea-container" :class="{ dragging: isDraggingRight }"
+        @dragover="isDraggingRight = true"
+        @dragleave="isDraggingRight = false"
+        @drop="isDraggingRight = false">
         <textarea ref="rightTextarea" v-model="jsonRightInput" placeholder="Enter JSON (Right)..." rows="5"></textarea>
-        <button v-if="jsonRightInput" class="clear-button" @click="jsonRightInput = ''" title="Clear">
-          <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-            <line x1="18" y1="6" x2="6" y2="18"></line>
-            <line x1="6" y1="6" x2="18" y2="18"></line>
-          </svg>
-        </button>
+        <div class="textarea-actions">
+          <button class="action-button" @click="openRightFile" title="Open File">
+            <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <path d="M13 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V9z"></path>
+              <polyline points="13 2 13 9 20 9"></polyline>
+            </svg>
+          </button>
+          <button v-if="jsonRightInput" class="action-button" @click="jsonRightInput = ''" title="Clear">
+            <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <line x1="18" y1="6" x2="6" y2="18"></line>
+              <line x1="6" y1="6" x2="18" y2="18"></line>
+            </svg>
+          </button>
+        </div>
       </div>
     </div>
     <div class="row query-row">
@@ -358,12 +436,23 @@ watch([jsonInput, jsonRightInput, jsonQuery], debounce(() => {
   width: 0;
 }
 
-.clear-button {
+.textarea-container.dragging textarea {
+  border-color: #007aff;
+  background-color: rgba(0, 122, 255, 0.05);
+}
+
+.textarea-actions {
   position: absolute;
   top: 8px;
   right: 8px;
+  display: flex;
+  gap: 4px;
+  z-index: 10;
+}
+
+.action-button {
   padding: 4px;
-  background: rgba(0, 0, 0, 0.1);
+  background: rgba(0, 0, 0, 0.05);
   color: #666;
   border: none;
   border-radius: 4px;
@@ -371,12 +460,11 @@ watch([jsonInput, jsonRightInput, jsonQuery], debounce(() => {
   display: flex;
   align-items: center;
   justify-content: center;
-  z-index: 10;
   transition: background 0.2s, color 0.2s;
 }
 
-.clear-button:hover {
-  background: rgba(0, 0, 0, 0.2);
+.action-button:hover {
+  background: rgba(0, 0, 0, 0.15);
   color: #333;
 }
 
@@ -505,19 +593,22 @@ button:hover {
     background-color: #2a2a2a;
     border-color: #444;
   }
-  .clear-button {
-    background: rgba(255, 255, 255, 0.1);
-    color: #aaa;
-  }
-  .clear-button:hover {
-    background: rgba(255, 255, 255, 0.2);
-    color: #fff;
-  }
   .suggestion-item {
     color: #d4d4d4;
   }
   .suggestion-item:hover, .suggestion-item.active {
     background-color: #3e3e3e;
+  }
+  .action-button {
+    background: rgba(255, 255, 255, 0.05);
+    color: #aaa;
+  }
+  .action-button:hover {
+    background: rgba(255, 255, 255, 0.15);
+    color: #fff;
+  }
+  .textarea-container.dragging textarea {
+    background-color: rgba(0, 122, 255, 0.1);
   }
 }
 </style>

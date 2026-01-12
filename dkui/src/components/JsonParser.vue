@@ -1,7 +1,8 @@
 <script setup>
 import { ref, onMounted, watch, computed } from "vue";
 import { invoke } from "@tauri-apps/api/core";
-import { save } from "@tauri-apps/plugin-dialog";
+import { listen } from "@tauri-apps/api/event";
+import { save, open } from "@tauri-apps/plugin-dialog";
 import { useDebounce } from "../composables/useDebounce";
 import VueJsonPretty from 'vue-json-pretty';
 import 'vue-json-pretty/lib/styles.css';
@@ -19,6 +20,7 @@ const jsonQuery = ref(props.initialQuery || "");
 const jsonKeys = ref([]);
 const selectedIndex = ref(-1);
 const showSuggestions = ref(false);
+const isDragging = ref(false);
 
 const { debounce } = useDebounce();
 
@@ -41,6 +43,24 @@ async function formatJson(input, outputRef) {
     outputRef.value = await invoke("format_json", { json: input });
   } catch (e) {
     outputRef.value = "Error: " + e;
+  }
+}
+
+async function processFile(path) {
+  try {
+    jsonInput.value = path;
+  } catch (e) {
+    jsonOutput.value = "Error reading file: " + e;
+  }
+}
+
+async function openFile() {
+  const selected = await open({
+    multiple: false,
+    directory: false,
+  });
+  if (selected) {
+    await processFile(selected);
   }
 }
 
@@ -158,24 +178,48 @@ watch([jsonInput, jsonQuery], debounce(() => {
   emit('update:query', jsonQuery.value);
 }));
 
-onMounted(() => {
+onMounted(async () => {
   if (jsonInput.value) {
     queryJson();
   }
+
+  await listen("tauri://drag-drop", (event) => {
+    isDragging.value = false;
+    const paths = event.payload.paths;
+    if (paths && paths.length > 0) {
+      processFile(paths[0]);
+    }
+  });
+
+  await listen("tauri://drag-over", () => {
+    isDragging.value = true;
+  });
+
+  await listen("tauri://drag-leave", () => {
+    isDragging.value = false;
+  });
 });
 </script>
 
 <template>
   <section class="tool-section">
     <div class="json-inputs">
-      <div class="textarea-container">
+      <div class="textarea-container" :class="{ dragging: isDragging }">
         <textarea v-model="jsonInput" placeholder="Enter JSON..." rows="5"></textarea>
-        <button v-if="jsonInput" class="clear-button" @click="jsonInput = ''" title="Clear">
-          <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-            <line x1="18" y1="6" x2="6" y2="18"></line>
-            <line x1="6" y1="6" x2="18" y2="18"></line>
-          </svg>
-        </button>
+        <div class="textarea-actions">
+          <button class="action-button" @click="openFile" title="Open File">
+            <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <path d="M13 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V9z"></path>
+              <polyline points="13 2 13 9 20 9"></polyline>
+            </svg>
+          </button>
+          <button v-if="jsonInput" class="action-button" @click="jsonInput = ''" title="Clear">
+            <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <line x1="18" y1="6" x2="6" y2="18"></line>
+              <line x1="6" y1="6" x2="18" y2="18"></line>
+            </svg>
+          </button>
+        </div>
       </div>
     </div>
     <div class="row query-row">
@@ -235,27 +279,6 @@ onMounted(() => {
   width: 0;
 }
 
-.clear-button {
-  position: absolute;
-  top: 8px;
-  right: 8px;
-  padding: 4px;
-  background: rgba(0, 0, 0, 0.1);
-  color: #666;
-  border: none;
-  border-radius: 4px;
-  cursor: pointer;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  z-index: 10;
-  transition: background 0.2s, color 0.2s;
-}
-
-.clear-button:hover {
-  background: rgba(0, 0, 0, 0.2);
-  color: #333;
-}
 
 .json-outputs .output {
   flex: 1;
@@ -276,6 +299,38 @@ textarea {
   min-height: calc(1.2em * 5 + 16px);
   line-height: 1.2;
   resize: vertical;
+}
+
+.textarea-container.dragging textarea {
+  border-color: #007aff;
+  background-color: rgba(0, 122, 255, 0.05);
+}
+
+.textarea-actions {
+  position: absolute;
+  top: 8px;
+  right: 8px;
+  display: flex;
+  gap: 4px;
+  z-index: 10;
+}
+
+.action-button {
+  padding: 4px;
+  background: rgba(0, 0, 0, 0.05);
+  color: #666;
+  border: none;
+  border-radius: 4px;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: background 0.2s, color 0.2s;
+}
+
+.action-button:hover {
+  background: rgba(0, 0, 0, 0.15);
+  color: #333;
 }
 
 button {
@@ -365,19 +420,22 @@ button:hover {
     background-color: #2a2a2a;
     border-color: #444;
   }
-  .clear-button {
-    background: rgba(255, 255, 255, 0.1);
-    color: #aaa;
-  }
-  .clear-button:hover {
-    background: rgba(255, 255, 255, 0.2);
-    color: #fff;
-  }
   .suggestion-item {
     color: #d4d4d4;
   }
   .suggestion-item:hover, .suggestion-item.active {
     background-color: #3e3e3e;
+  }
+  .action-button {
+    background: rgba(255, 255, 255, 0.05);
+    color: #aaa;
+  }
+  .action-button:hover {
+    background: rgba(255, 255, 255, 0.15);
+    color: #fff;
+  }
+  .textarea-container.dragging textarea {
+    background-color: rgba(0, 122, 255, 0.1);
   }
 }
 </style>

@@ -282,18 +282,7 @@ fn base64_decode(input: String, url_safe: bool, no_pad: bool) -> Result<String, 
 
 #[tauri::command]
 fn base64_encode(input: String, url_safe: bool, no_pad: bool) -> Result<String, String> {
-    devkit::command::base64::encode(input.as_bytes(), url_safe, no_pad).map_err(|e| e.to_string())
-}
-
-#[tauri::command]
-fn read_file_content(path: String) -> Result<String, String> {
-    std::fs::read_to_string(path).map_err(|e| e.to_string())
-}
-
-#[tauri::command]
-fn read_file_base64(path: String, url_safe: bool, no_pad: bool) -> Result<String, String> {
-    let data = std::fs::read(path).map_err(|e| e.to_string())?;
-    devkit::command::base64::encode(&data, url_safe, no_pad).map_err(|e| e.to_string())
+    devkit::command::base64::encode(&input, url_safe, no_pad).map_err(|e| e.to_string())
 }
 
 #[tauri::command]
@@ -393,8 +382,6 @@ pub fn run() {
             generate_qrcode,
             base64_decode,
             base64_encode,
-            read_file_content,
-            read_file_base64
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

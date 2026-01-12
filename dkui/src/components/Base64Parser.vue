@@ -24,8 +24,8 @@ async function processFile(path) {
     if (mode.value === 'encode') {
       // 编码模式下，直接读取文件并转为 base64
       input.value = "Reading file...";
-      const res = await invoke("read_file_base64", { 
-        path,
+      const res = await invoke("base64_encode", {
+        input: path,
         urlSafe: urlSafe.value,
         noPad: noPad.value
       });
@@ -40,7 +40,12 @@ async function processFile(path) {
       output.value = res;
     } else {
       // 解码模式下，读取文件内容作为输入
-      const content = await invoke("read_file_content", { path });
+      const content = await invoke("base64_decode", {
+        input: path,
+        urlSafe: urlSafe.value,
+        noPad: noPad.value,
+        path
+      });
       input.value = content;
     }
   } catch (e) {

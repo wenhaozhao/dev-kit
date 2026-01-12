@@ -33,7 +33,12 @@ pub enum Base64Command {
     },
 }
 
-pub fn decode(text: &str, url_safe: bool, no_pad: bool) -> crate::Result<Vec<u8>> {
+pub fn decode(input: &str, url_safe: bool, no_pad: bool) -> crate::Result<Vec<u8>> {
+    let text = if let Some(input) = PathBuf::from_str(input).ok().and_then(|p| fs::read_to_string(p).ok()) {
+        input
+    } else {
+        input.to_string()
+    };
     if url_safe {
         if no_pad {
             base64::prelude::BASE64_URL_SAFE.decode(text.as_bytes())
@@ -49,7 +54,12 @@ pub fn decode(text: &str, url_safe: bool, no_pad: bool) -> crate::Result<Vec<u8>
     }.map_err(|e| anyhow::anyhow!("base64 encode failed: {}", e))
 }
 
-pub fn encode(data: &[u8], url_safe: bool, no_pad: bool) -> crate::Result<String> {
+pub fn encode(input: &str, url_safe: bool, no_pad: bool) -> crate::Result<String> {
+    let data = if let Some(input) = PathBuf::from_str(input).ok().and_then(|p| fs::read(p).ok()) {
+        input
+    } else {
+        input.as_bytes().to_vec()
+    };
     let string = if url_safe {
         if no_pad {
             base64::prelude::BASE64_URL_SAFE.encode(data)
@@ -75,11 +85,6 @@ impl super::Command for Base64Command {
     fn run(&self) -> crate::Result<()> {
         match self {
             Self::Decode { input, url_safe, no_pad, raw_output, file } => {
-                let input = if let Some(input) = PathBuf::from_str(input).ok().and_then(|p| fs::read_to_string(p).ok()) {
-                    input
-                } else {
-                    input.to_string()
-                };
                 let data = decode(&input, *url_safe, *no_pad)?;
                 match (*raw_output, file) {
                     (false, None) => {
@@ -104,11 +109,6 @@ impl super::Command for Base64Command {
                 }
             }
             Self::Encode { input, url_safe, no_pad, file } => {
-                let input = if let Some(input) = PathBuf::from_str(input).ok().and_then(|p| fs::read(p).ok()) {
-                    input
-                } else {
-                    input.as_bytes().to_vec()
-                };
                 let text = encode(&input, *url_safe, *no_pad)?;
                 if let Some(file) = file {
                     let _ = std::fs::write(file, text)?;
