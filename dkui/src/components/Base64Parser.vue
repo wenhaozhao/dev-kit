@@ -23,30 +23,10 @@ async function processFile(path) {
   try {
     if (mode.value === 'encode') {
       // 编码模式下，直接读取文件并转为 base64
-      input.value = "Reading file...";
-      const res = await invoke("base64_encode", {
-        input: path,
-        urlSafe: urlSafe.value,
-        noPad: noPad.value
-      });
-      // 注意：这里我们可能想要把编码结果放在 output 还是 input？
-      // 用户拖入文件通常是想“得到它的 base64”。
-      // 如果我们把结果放在 input，那么 handleBase64 会再次触发。
-      // 更好的做法是：如果是编码模式，我们把结果显示在 output，
-      // 但由于我们的 handleBase64 是 watch input 的，所以我们需要一些技巧。
-      
-      // 方案：直接设置 output，并清空 input（或保持 input 为文件名）
-      input.value = `File: ${path}`;
-      output.value = res;
+      input.value = path;
     } else {
       // 解码模式下，读取文件内容作为输入
-      const content = await invoke("base64_decode", {
-        input: path,
-        urlSafe: urlSafe.value,
-        noPad: noPad.value,
-        path
-      });
-      input.value = content;
+      input.value = path;
     }
   } catch (e) {
     output.value = "Error reading file: " + e;

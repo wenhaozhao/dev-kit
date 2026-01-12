@@ -33,7 +33,6 @@ const parsedJsonOutput = computed(() => {
   try {
     return JSON.parse(jsonOutput.value);
   } catch (e) {
-    // If it's not valid JSON (e.g. multi-line string from query), return as is or handle
     return jsonOutput.value;
   }
 });

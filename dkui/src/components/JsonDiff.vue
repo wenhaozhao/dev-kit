@@ -15,7 +15,7 @@ const props = defineProps({
 
 const emit = defineEmits(['update:leftJson', 'update:rightJson', 'update:query']);
 
-const jsonInput = ref(props.initialLeftJson || "");
+const jsonLeftInput = ref(props.initialLeftJson || "");
 const jsonRightInput = ref(props.initialRightJson || "");
 const jsonOutput = ref("");
 const jsonRightOutput = ref("");
@@ -85,13 +85,11 @@ onMounted(async () => {
   if (leftTextarea.value) observer.observe(leftTextarea.value);
   if (rightTextarea.value) observer.observe(rightTextarea.value);
 
-  if (jsonInput.value || jsonRightInput.value) {
+  if (jsonLeftInput.value || jsonRightInput.value) {
     queryJson();
   }
 
   await listen("tauri://drag-drop", (event) => {
-    isDraggingLeft.value = false;
-    isDraggingRight.value = false;
     const paths = event.payload.paths;
     if (paths && paths.length > 0) {
       // Logic for determining which side to drop into:
@@ -99,7 +97,7 @@ onMounted(async () => {
       // However, the standard `tauri://drag-drop` doesn't easily give target element.
       // For now, let's use the `isDraggingLeft/Right` states set by `tauri://drag-over`.
       if (isDraggingLeft.value) {
-        processFile(paths[0], jsonInput);
+        processFile(paths[0], jsonLeftInput);
       } else if (isDraggingRight.value) {
         processFile(paths[0], jsonRightInput);
       }
@@ -107,8 +105,20 @@ onMounted(async () => {
   });
 
   await listen("tauri://drag-over", (event) => {
-    // We can't easily tell which side it's over from the global event.
-    // We'll rely on HTML drag events for the visual part and setting the state.
+    // Determine which side based on x position
+    if (event.payload && event.payload.position) {
+      const {x} = event.payload.position;
+      const windowWidth = window.innerWidth;
+      const midpoint = windowWidth / 2;
+
+      if (x < midpoint) {
+        isDraggingLeft.value = true;
+        isDraggingRight.value = false;
+      } else {
+        isDraggingLeft.value = false;
+        isDraggingRight.value = true;
+      }
+    }
   });
 
   await listen("tauri://drag-leave", () => {
@@ -126,7 +136,6 @@ async function formatJson(input, outputRef) {
 }
 
 async function processFile(path, inputRef) {
-  console.log(path);
   try {
     inputRef.value = path;
   } catch (e) {
@@ -140,7 +149,7 @@ async function openLeftFile() {
     directory: false,
   });
   if (selected) {
-    await processFile(selected, jsonInput);
+    await processFile(selected, jsonLeftInput);
   }
 }
 
@@ -155,7 +164,7 @@ async function openRightFile() {
 }
 
 async function queryJson() {
-  if (!jsonInput.value && !jsonRightInput.value) {
+  if (!jsonLeftInput.value && !jsonRightInput.value) {
     jsonOutput.value = "";
     jsonRightOutput.value = "";
     jsonKeys.value = [];
@@ -171,8 +180,8 @@ async function queryJson() {
   const query = (!jsonQuery.value || jsonQuery.value === '$') ? null : jsonQuery.value;
 
   if (!query) {
-    if (jsonInput.value) {
-      await formatJson(jsonInput.value, jsonOutput);
+    if (jsonLeftInput.value) {
+      await formatJson(jsonLeftInput.value, jsonOutput);
       lastSuccessfulOutput.value = jsonOutput.value;
     } else {
       jsonOutput.value = "";
@@ -187,9 +196,9 @@ async function queryJson() {
     return;
   }
 
-  if (jsonInput.value) {
+  if (jsonLeftInput.value) {
     try {
-      const res = await invoke("query_json", { json: jsonInput.value, query });
+      const res = await invoke("query_json", { json: jsonLeftInput.value, query });
       jsonOutput.value = res.join("\n");
       lastSuccessfulOutput.value = jsonOutput.value;
     } catch (e) {
@@ -224,7 +233,7 @@ async function queryJson() {
 
 async function updateKeys() {
   try {
-    const jsonToProcess = jsonInput.value || jsonRightInput.value;
+    const jsonToProcess = jsonLeftInput.value || jsonRightInput.value;
     if (!jsonToProcess) {
       jsonKeys.value = [];
       return;
@@ -275,7 +284,7 @@ function handleKeyDown(e) {
 async function diffJson() {
   try {
     await invoke("diff_json", { 
-      left: jsonInput.value, 
+      left: jsonLeftInput.value,
       right: jsonRightInput.value, 
       query: jsonQuery.value || null,
       diffTool: diffTool.value 
@@ -308,9 +317,9 @@ watch(jsonKeys, () => {
   selectedIndex.value = -1;
 });
 
-watch([jsonInput, jsonRightInput, jsonQuery], debounce(() => {
+watch([jsonLeftInput, jsonRightInput, jsonQuery], debounce(() => {
   queryJson();
-  emit('update:leftJson', jsonInput.value);
+  emit('update:leftJson', jsonLeftInput.value);
   emit('update:rightJson', jsonRightInput.value);
   emit('update:query', jsonQuery.value);
 }));
@@ -323,7 +332,7 @@ watch([jsonInput, jsonRightInput, jsonQuery], debounce(() => {
         @dragover="isDraggingLeft = true"
         @dragleave="isDraggingLeft = false"
         @drop="isDraggingLeft = false">
-        <textarea ref="leftTextarea" v-model="jsonInput" placeholder="Enter JSON (Left)..." rows="5"></textarea>
+        <textarea id="leftTextarea" ref="leftTextarea" v-model="jsonLeftInput" placeholder="Enter JSON (Left)..." rows="5"></textarea>
         <div class="textarea-actions">
           <button class="action-button" @click="openLeftFile" title="Open File">
             <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
@@ -331,7 +340,7 @@ watch([jsonInput, jsonRightInput, jsonQuery], debounce(() => {
               <polyline points="13 2 13 9 20 9"></polyline>
             </svg>
           </button>
-          <button v-if="jsonInput" class="action-button" @click="jsonInput = ''" title="Clear">
+          <button v-if="jsonLeftInput" class="action-button" @click="jsonLeftInput = ''" title="Clear">
             <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
               <line x1="18" y1="6" x2="6" y2="18"></line>
               <line x1="6" y1="6" x2="18" y2="18"></line>
@@ -343,7 +352,7 @@ watch([jsonInput, jsonRightInput, jsonQuery], debounce(() => {
         @dragover="isDraggingRight = true"
         @dragleave="isDraggingRight = false"
         @drop="isDraggingRight = false">
-        <textarea ref="rightTextarea" v-model="jsonRightInput" placeholder="Enter JSON (Right)..." rows="5"></textarea>
+        <textarea id="rightTextarea" ref="rightTextarea" v-model="jsonRightInput" placeholder="Enter JSON (Right)..." rows="5"></textarea>
         <div class="textarea-actions">
           <button class="action-button" @click="openRightFile" title="Open File">
             <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
