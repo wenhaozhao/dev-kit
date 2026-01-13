@@ -34,5 +34,6 @@ dist/
 node_modules/
 dkui/src-tauri/gen
 package-lock.json
+.vite
 
 
