@@ -1,5 +1,4 @@
 use crate::command::http_parser::HttpRequest;
-use anyhow::anyhow;
 use derive_more::Display;
 use std::fs;
 use std::path::PathBuf;
@@ -8,27 +7,20 @@ use strum::EnumIter;
 
 #[derive(clap::Subcommand)]
 pub enum JsonCommand {
-    #[clap(about = "json beautify, alias 'format'", alias = "format")]
+    #[clap(about = "json format, alias 'beauty(b)/query(q)/search(s)/format(f)'", aliases = ["b", "query", "q", "search", "s", "format", "f"])]
     Beauty {
         #[arg(help = "json input, support string, file-path, url, cmd", default_value = "")]
         json: Json,
-        #[arg(short, long, help = "json path to extract")]
+        #[arg(short, long, help = "json query to extract")]
         query: Option<String>,
-        #[arg(short, long, help = "file to write output")]
-        file: Option<PathBuf>,
-    },
-    #[clap(about = "json query, alias 'search'", alias = "search")]
-    Query {
-        #[arg(help = "json input, support string, file-path, url, cmd", default_value = "")]
-        json: Json,
-        #[arg(short, long, help = "json path to extract")]
-        query: String,
-        #[arg(long, help = "beauty output", alias = "format", default_value = "false")]
+        #[arg(long, help = "json query type, alias `qt`, jsonpath(jp)/prefix(p)/suffix(s)/contains(c)/regex(r), and will auto detect if not set", alias = "qt")]
+        query_type: Option<QueryType>,
+        #[arg(long, help = "beauty output", alias = "format", default_value = "true")]
         beauty: bool,
         #[arg(short, long, help = "file to write output")]
         file: Option<PathBuf>,
     },
-    #[clap(about = "json diff with left and right")]
+    #[clap(about = "json diff with left and right, alias 'd'", aliases=["d"])]
     Diff {
         #[arg(help = "json input, support string, file-path, url, cmd", default_value = "")]
         left: Json,
@@ -36,6 +28,8 @@ pub enum JsonCommand {
         right: Json,
         #[arg(short, long, help = "json path to extract")]
         query: Option<String>,
+        #[arg(long, help = "json query type, alias `qt`, jsonpath(jp)/prefix(p)/suffix(s)/contains(c)/regex(r), and will auto detect if not set", alias = "qt")]
+        query_type: Option<QueryType>,
         #[arg(long, help = "diff tool to use, alias dt, support idea/zed/vscode, and will auto detect if not set", alias = "dt")]
         diff_tool: Option<DiffTool>,
     },
@@ -44,40 +38,25 @@ pub enum JsonCommand {
 impl super::Command for JsonCommand {
     fn run(&self) -> crate::Result<()> {
         match self {
-            JsonCommand::Beauty { json, query, file } => {
-                let result = json.beautify(query.as_deref())?;
+            JsonCommand::Beauty { json, query, query_type, beauty, file } => {
+                let content = json.query(query.as_deref(), *query_type, *beauty)?;
                 if let Some(file) = file {
-                    fs::write(&file, result).map_err(|err|
-                        anyhow!("write to {} failed, {}", file.display(), err)
-                    )?;
-                    println!("write to {}", file.display())
-                } else {
-                    println!("{result}");
-                }
-                Ok(())
-            }
-            JsonCommand::Query { json, query, beauty, file } => {
-                let result = json.query(query, *beauty)?;
-                if let Some(file) = file {
-                    let content = result.join("\n");
                     fs::write(&file, content)?;
-                    println!("write to {}", file.display())
+                    println!("write to {}", file.display());
                 } else {
-                    for row in result {
-                        println!("{}", row);
-                    }
+                    println!("{content}");
                 }
                 Ok(())
             }
-            JsonCommand::Diff { left, right, query, diff_tool } => {
-                let _ = left.diff(right, query.as_deref(), diff_tool.map(|it| it))?;
+            JsonCommand::Diff { left, right, query, query_type, diff_tool } => {
+                let _ = left.diff(right, query.as_deref(), *query_type, diff_tool.map(|it| it))?;
                 Ok(())
             }
         }
     }
 }
 
-#[derive(Debug, Clone, Display)]
+#[derive(Debug, Clone, Display, )]
 pub enum Json {
     #[display("{_0}")]
     Cmd(String),
@@ -91,6 +70,28 @@ pub enum Json {
     JsonValue(Arc<serde_json::Value>),
 }
 
+#[derive(Debug, Clone, Copy)]
+pub enum QueryType {
+    JsonPath,
+    KeyPattern(KeyPatternType),
+}
+
+impl Default for QueryType {
+    fn default() -> Self {
+        Self::KeyPattern(KeyPatternType::default())
+    }
+}
+
+#[derive(Debug, Clone, Copy, Default)]
+pub enum KeyPatternType {
+    Prefix,
+    Suffix,
+    #[default]
+    Contains,
+    Regex,
+}
+
+mod type_;
 mod json;
 
 #[derive(Debug, Copy, Clone, Display, EnumIter)]

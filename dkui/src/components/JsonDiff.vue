@@ -1,5 +1,5 @@
 <script setup>
-import { ref, onMounted, watch, computed } from "vue";
+import { ref, onMounted, onUnmounted, watch, computed } from "vue";
 import { invoke } from "@tauri-apps/api/core";
 import { listen } from "@tauri-apps/api/event";
 import { save, open } from "@tauri-apps/plugin-dialog";
@@ -27,6 +27,7 @@ const selectedIndex = ref(-1);
 const showSuggestions = ref(false);
 const isDraggingLeft = ref(false);
 const isDraggingRight = ref(false);
+const queryContainer = ref(null);
 
 const leftTextarea = ref(null);
 const rightTextarea = ref(null);
@@ -125,15 +126,19 @@ onMounted(async () => {
     isDraggingLeft.value = false;
     isDraggingRight.value = false;
   });
-});
 
-async function formatJson(input, outputRef) {
-  try {
-    outputRef.value = await invoke("format_json", { json: input });
-  } catch (e) {
-    outputRef.value = "Error: " + e;
-  }
-}
+  const handleClickOutside = (e) => {
+    if (queryContainer.value && !queryContainer.value.contains(e.target)) {
+      showSuggestions.value = false;
+    }
+  };
+
+  document.addEventListener('click', handleClickOutside);
+
+  onUnmounted(() => {
+    document.removeEventListener('click', handleClickOutside);
+  });
+});
 
 async function processFile(path, inputRef) {
   try {
@@ -172,34 +177,10 @@ async function queryJson() {
     lastSuccessfulRightOutput.value = "";
     return;
   }
-  
-  if (jsonQuery.value && !jsonQuery.value.startsWith('$')) {
-    jsonQuery.value = '$' + (jsonQuery.value.startsWith('.') ? '' : '.') + jsonQuery.value;
-  }
-
-  const query = (!jsonQuery.value || jsonQuery.value === '$') ? null : jsonQuery.value;
-
-  if (!query) {
-    if (jsonLeftInput.value) {
-      await formatJson(jsonLeftInput.value, jsonOutput);
-      lastSuccessfulOutput.value = jsonOutput.value;
-    } else {
-      jsonOutput.value = "";
-    }
-    if (jsonRightInput.value) {
-      await formatJson(jsonRightInput.value, jsonRightOutput);
-      lastSuccessfulRightOutput.value = jsonRightOutput.value;
-    } else {
-      jsonRightOutput.value = "";
-    }
-    await updateKeys();
-    return;
-  }
 
   if (jsonLeftInput.value) {
     try {
-      const res = await invoke("query_json", { json: jsonLeftInput.value, query });
-      jsonOutput.value = res.join("\n");
+      jsonOutput.value = await invoke("query_json", { json: jsonLeftInput.value, query: jsonQuery.value });
       lastSuccessfulOutput.value = jsonOutput.value;
     } catch (e) {
       if (lastSuccessfulOutput.value) {
@@ -214,8 +195,7 @@ async function queryJson() {
 
   if (jsonRightInput.value) {
     try {
-      const res = await invoke("query_json", { json: jsonRightInput.value, query });
-      jsonRightOutput.value = res.join("\n");
+      jsonRightOutput.value = await invoke("query_json", { json: jsonRightInput.value, query: jsonQuery.value });
       lastSuccessfulRightOutput.value = jsonRightOutput.value;
     } catch (e) {
       if (lastSuccessfulRightOutput.value) {
@@ -238,25 +218,34 @@ async function updateKeys() {
       jsonKeys.value = [];
       return;
     }
-    jsonKeys.value = await invoke("get_json_keys", { 
-      json: jsonToProcess, 
-      query: jsonQuery.value || null 
+    const paths = await invoke("search_json_paths", {
+      json: jsonToProcess,
+      query: jsonQuery.value || null
     });
+    if (paths.length > 0) {
+      jsonKeys.value = paths
+    }
   } catch (e) {
     console.error("Failed to fetch keys:", e);
-    jsonKeys.value = [];
   }
 }
 
 function appendToQuery(key) {
-  if (!jsonQuery.value) {
-    jsonQuery.value = "$.";
+  let val = jsonQuery.value || "";
+  if (key.startsWith("$")) {
+    val = key;
+  }else{
+    if (val.startsWith("$")) {
+      if (val.endsWith(".")) {
+        val += key;
+      } else {
+        val += "." + key;
+      }
+    } else {
+      val = key;
+    }
   }
-  if (jsonQuery.value.endsWith(".")) {
-    jsonQuery.value += key;
-  } else {
-    jsonQuery.value += "." + key;
-  }
+  jsonQuery.value = val;
   showSuggestions.value = false;
   selectedIndex.value = -1;
 }
@@ -294,8 +283,8 @@ async function diffJson() {
   }
 }
 
-async function saveJsonToFile() {
-  if (!jsonOutput.value || jsonOutput.value.startsWith("Error: ")) {
+async function saveJsonToFile(content) {
+  if (!content || content.startsWith("Error: ")) {
     return;
   }
   try {
@@ -306,10 +295,10 @@ async function saveJsonToFile() {
       }]
     });
     if (path) {
-      await invoke("save_to_file", { path, content: jsonOutput.value });
+      await invoke("save_to_file", { path, content });
     }
   } catch (e) {
-    jsonOutput.value = "Error: " + e;
+    console.error("Save failed:", e);
   }
 }
 
@@ -369,9 +358,10 @@ watch([jsonLeftInput, jsonRightInput, jsonQuery], debounce(() => {
         </div>
       </div>
     </div>
-    <div class="row query-row">
+    <div class="row query-row" ref="queryContainer">
       <input v-model="jsonQuery" placeholder="json path filter" 
         @input="showSuggestions = true"
+        @focus="showSuggestions = true"
         @blur="setTimeout(() => showSuggestions = false, 200)"
         @keydown="handleKeyDown" />
       <div class="diff-actions">
@@ -384,7 +374,6 @@ watch([jsonLeftInput, jsonRightInput, jsonQuery], debounce(() => {
           {{ availableDiffTools.length > 0 ? 'Diff' : 'No Diff Tool' }}
         </button>
       </div>
-      <button v-if="jsonOutput && !jsonOutput.startsWith('Error: ')" @click="saveJsonToFile">Save</button>
       <div v-if="showSuggestions && jsonKeys.length > 0" class="suggestions-dropdown">
         <div v-for="(key, index) in jsonKeys" :key="key" 
           class="suggestion-item" 
@@ -396,6 +385,15 @@ watch([jsonLeftInput, jsonRightInput, jsonQuery], debounce(() => {
     </div>
     <div class="json-outputs">
       <div v-if="jsonOutput" class="output">
+        <div class="output-actions">
+          <button v-if="!jsonOutput.startsWith('Error: ')" class="action-button" @click="saveJsonToFile(jsonOutput)" title="Save to File">
+            <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"></path>
+              <polyline points="17 21 17 13 7 13 7 21"></polyline>
+              <polyline points="7 3 7 8 15 8"></polyline>
+            </svg>
+          </button>
+        </div>
         <div v-if="jsonOutput.startsWith('Error: ')" class="error-msg">{{ jsonOutput }}</div>
         <vue-json-pretty
           v-else
@@ -405,6 +403,15 @@ watch([jsonLeftInput, jsonRightInput, jsonQuery], debounce(() => {
         />
       </div>
       <div v-if="jsonRightOutput" class="output">
+        <div class="output-actions">
+          <button v-if="!jsonRightOutput.startsWith('Error: ')" class="action-button" @click="saveJsonToFile(jsonRightOutput)" title="Save to File">
+            <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"></path>
+              <polyline points="17 21 17 13 7 13 7 21"></polyline>
+              <polyline points="7 3 7 8 15 8"></polyline>
+            </svg>
+          </button>
+        </div>
         <div v-if="jsonRightOutput.startsWith('Error: ')" class="error-msg">{{ jsonRightOutput }}</div>
         <vue-json-pretty
           v-else
@@ -478,9 +485,19 @@ watch([jsonLeftInput, jsonRightInput, jsonQuery], debounce(() => {
 }
 
 .json-outputs .output {
+  position: relative;
   flex: 1;
   margin-top: 0;
   width: 0;
+}
+
+.output-actions {
+  position: absolute;
+  top: 8px;
+  right: 8px;
+  display: flex;
+  gap: 4px;
+  z-index: 10;
 }
 
 .diff-actions {

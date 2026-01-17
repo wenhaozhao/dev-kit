@@ -1,76 +1,66 @@
-use super::{DiffTool, Json};
-use crate::command::http_parser::HttpRequest;
-use crate::command::read_stdin;
-use anyhow::anyhow;
+use super::{DiffTool, Json, KeyPatternType, QueryType};
 use itertools::Itertools;
 use jsonpath_rust::JsonPath;
-use lazy_static::lazy_static;
-use std::path::PathBuf;
-use std::process::Command;
-use std::str::FromStr;
+use serde::ser::Error;
+use serde::{Serialize, Serializer};
+use serde_json::Value;
+use std::collections::BTreeMap;
+use std::ops::Deref;
 use std::sync::Arc;
 use std::{env, fs};
 
 impl Json {
-    pub fn keys(&self, query: Option<&str>) -> crate::Result<Vec<String>> {
-        let json = Arc::<serde_json::Value>::try_from(self)?;
-        let result = if let Some(query) = query {
-            json.query(query)?
-        } else {
-            vec![&*json]
-        };
-        let keys = result
-            .iter()
-            .flat_map(|it| match it {
-                serde_json::Value::Object(map) => map.keys().map(|k| k.to_string()).collect_vec(),
-                serde_json::Value::Array(_) => vec!["*".to_string()],
-                _ => vec![],
-            })
-            .unique_by(|it| it.clone())
-            .collect_vec();
-        Ok(keys)
-    }
-    pub fn beautify(&self, query: Option<&str>) -> crate::Result<String> {
-        let json = Arc::<serde_json::Value>::try_from(self)?;
-        let result = if let Some(query) = query {
-            let json = json.query(query)?;
-            serde_json::to_string_pretty(&json)
-        } else {
-            serde_json::to_string_pretty(&*json)
-        };
-        Ok(result.map_err(|err| {
-            log::debug!("{}", err);
-            anyhow!("Invalid json format")
-        })?)
+    pub fn search_paths(&self, query: Option<&str>, query_type: Option<QueryType>) -> crate::Result<Vec<Jsonpath>> {
+        let json = Arc::<Value>::try_from(self)?;
+        let query = query.map(|it| it.trim()).filter(|it| it.len() > 0).unwrap_or("");
+        let (kp, qt) = Self::parse_query_type(query, query_type)?;
+        match (kp, qt, query, query.is_empty()) {
+            (_, _, _, true) => {
+                Ok(vec![])
+            }
+            (Some(key_pattern), _, _, false) => {
+                Ok(Self::search_key_actual(&json, &key_pattern, None))
+            }
+            (None, Some(QueryType::JsonPath), query, false) => {
+                let (prefix, keyword) = if let Some((prefix, keyword)) = query.rsplit_once(".") {
+                    (prefix, Some(keyword))
+                } else {
+                    (query, None)
+                };
+                match (prefix, keyword, keyword.unwrap_or("").is_empty()){
+                    (prefix, Some(keyword), false) => {
+                        Ok(Self::search_key_actual(&json, &KeyPattern::Prefix(keyword.to_lowercase()), Some(prefix)))
+                    }
+                    (prefix,_,_) => {
+                        Ok(json.query(prefix)?.iter().flat_map(|it| match it {
+                            Value::Object(map) => map.keys().map(|k| k.to_string()).collect_vec(),
+                            Value::Array(_) => vec!["*".to_string()],
+                            _ => vec![],
+                        }).unique().map(|it| Jsonpath(it)).collect_vec())
+                    }
+                }
+            }
+            _ => {
+                unreachable!()
+            }
+        }
     }
 
-    pub fn query(&self, query: &str, beauty: bool) -> crate::Result<Vec<String>> {
-        let json = Arc::<serde_json::Value>::try_from(self)?;
-        let query_result = json.query(query).map_err(|err| {
-            log::debug!("{}", err);
-            anyhow!("Invalid json path: {query}")
-        })?;
-        let arr = query_result
-            .iter()
-            .flat_map(|&it| {
-                if beauty {
-                    serde_json::to_string_pretty(&it)
-                } else {
-                    serde_json::to_string(&it)
-                }
-                .map_err(|err| {
-                    log::debug!("{}", err);
-                    anyhow!("Invalid json format")
-                })
-            })
-            .collect_vec();
-        Ok(arr)
+    pub fn query(&self, query: Option<&str>, query_type: Option<QueryType>, beauty: bool) -> crate::Result<String> {
+        let json = Arc::<Value>::try_from(self)?;
+        let query_vals = Self::query_actual(&json, query, query_type)?;
+        if beauty {
+            Ok(serde_json::to_string_pretty(&query_vals)?)
+        } else {
+            Ok(serde_json::to_string(&query_vals)?)
+        }
     }
 
     pub fn diff(
         &self,
         other: &Self,
         query: Option<&str>,
+        query_type: Option<QueryType>,
         diff_tool: Option<DiffTool>,
     ) -> crate::Result<()> {
         let tmp_dir = env::temp_dir()
@@ -82,11 +72,11 @@ impl Json {
         let left = self;
         let right = other;
         let _ = fs::create_dir_all(&tmp_dir)?;
-        let left = left.diff_prepare(query.as_deref())?;
+        let left = left.diff_prepare(query.as_deref(), query_type)?;
         let left_path = tmp_dir.join("left.json");
         fs::write(&left_path, left)?;
         println!("write left to file {}", left_path.display());
-        let right = right.diff_prepare(query.as_deref())?;
+        let right = right.diff_prepare(query.as_deref(), query_type)?;
         let right_path = tmp_dir.join("right.json");
         fs::write(&right_path, right)?;
         println!("write right to file {}", right_path.display());
@@ -108,275 +98,227 @@ install {} command-line interface, see:
     }
 }
 
+#[derive(Debug, Clone)]
+enum QueryVals {
+    Origin(Value),
+    JsonPath(Vec<Value>),
+    KeyPattern(BTreeMap<Jsonpath, Vec<Value>>),
+}
+
+impl serde::Serialize for QueryVals {
+    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
+    where
+        S: Serializer,
+    {
+        match self {
+            QueryVals::Origin(vals) => {
+                vals.serialize(serializer)
+            }
+            QueryVals::JsonPath(vals) => {
+                match serde_json::to_value(vals) {
+                    Ok(v) => v.serialize(serializer),
+                    Err(err) => Err(S::Error::custom(format!("{}", err)))
+                }
+            }
+            QueryVals::KeyPattern(vals) => {
+                match serde_json::to_value(vals) {
+                    Ok(v) => v.serialize(serializer),
+                    Err(err) => Err(S::Error::custom(format!("{}", err)))
+                }
+            }
+        }
+    }
+}
+
+#[derive(Debug, Clone)]
+enum KeyPattern {
+    Prefix(String),
+    Suffix(String),
+    Contains(String),
+    Regex(regex::Regex),
+}
+
+impl From<&KeyPattern> for KeyPatternType {
+    fn from(value: &KeyPattern) -> Self {
+        match value {
+            KeyPattern::Prefix(_) => KeyPatternType::Prefix,
+            KeyPattern::Suffix(_) => KeyPatternType::Suffix,
+            KeyPattern::Contains(_) => KeyPatternType::Contains,
+            KeyPattern::Regex(_) => KeyPatternType::Regex,
+        }
+    }
+}
+
+impl KeyPattern {
+    fn new(key_pattern: &str, pattern_type: KeyPatternType) -> crate::Result<Self> {
+        match pattern_type {
+            KeyPatternType::Prefix => Ok(Self::Prefix(key_pattern.to_lowercase())),
+            KeyPatternType::Suffix => Ok(Self::Suffix(key_pattern.to_lowercase())),
+            KeyPatternType::Contains => Ok(Self::Contains(key_pattern.to_lowercase())),
+            KeyPatternType::Regex => Ok(Self::Regex(
+                regex::RegexBuilder::new(key_pattern).case_insensitive(true).build()?
+            )),
+        }
+    }
+
+    fn guess(key_pattern: &str) -> crate::Result<Self> {
+        match regex::RegexBuilder::new(key_pattern).case_insensitive(true).build() {
+            Ok(regex) => {
+                Ok(Self::Regex(regex))
+            }
+            Err(_) => {
+                Self::new(key_pattern, KeyPatternType::default())
+            }
+        }
+    }
+
+    fn match_key(&self, key: &str) -> bool {
+        match self {
+            KeyPattern::Prefix(prefix) => {
+                let key = key.to_lowercase();
+                key.starts_with(prefix)
+            }
+            KeyPattern::Suffix(suffix) => {
+                let key = key.to_lowercase();
+                key.ends_with(suffix)
+            }
+            KeyPattern::Contains(contains) => {
+                let key = key.to_lowercase();
+                key.contains(contains)
+            }
+            KeyPattern::Regex(regex) => {
+                regex.is_match(key)
+            }
+        }
+    }
+}
+
 impl Json {
-    fn diff_prepare(&self, query: Option<&str>) -> crate::Result<String> {
-        let json = Arc::<serde_json::Value>::try_from(self)?;
-        if let Some(query) = query {
-            let array = json.query(query)?;
-            let pretty = serde_json::to_string_pretty(&array)?;
-            Ok(pretty)
-        } else {
-            Ok(serde_json::to_string_pretty(&*json)?)
+    fn parse_query_type(
+        query: &str,
+        query_type: Option<QueryType>,
+    ) -> crate::Result<(Option<KeyPattern>, Option<QueryType>)> {
+        match (query_type, query.is_empty(), query.starts_with("$")) {
+            (Some(QueryType::JsonPath), _, _) | (None, false, true) => {
+                Ok((None, Some(QueryType::JsonPath)))
+            }
+            (Some(qt @ QueryType::KeyPattern(kpt)), _, _) => {
+                Ok((Some(KeyPattern::new(query, kpt)?), Some(qt)))
+            }
+            (None, true, _) => {
+                Ok((None, None))
+            }
+            (None, false, false) => {
+                let kp = KeyPattern::guess(query).ok();
+                let qt = kp.as_ref().map(|it|
+                    KeyPatternType::from(it)
+                ).map(|kpt|
+                    QueryType::KeyPattern(kpt)
+                );
+                Ok((kp, qt))
+            }
         }
     }
-}
 
-lazy_static! {
-    static ref ASYNC_RT: tokio::runtime::Runtime = {
-        tokio::runtime::Builder::new_multi_thread()
-            .worker_threads(1usize)
-            .enable_all()
-            .build()
-            .unwrap()
-    };
-}
-
-impl TryFrom<&Json> for Arc<serde_json::Value> {
-    type Error = anyhow::Error;
-
-    fn try_from(input: &Json) -> Result<Self, Self::Error> {
-        let json = match input {
-            Json::Cmd(input) | Json::String(input) => {
-                let json = serde_json::from_str::<serde_json::Value>(&input).map_err(|err| {
-                    log::debug!("{}", err);
-                    anyhow!("Invalid json format")
-                })?;
-                Arc::new(json)
+    fn query_actual(
+        json: &Value,
+        query: Option<&str>,
+        query_type: Option<QueryType>,
+    ) -> crate::Result<QueryVals> {
+        let query = query.map(|it| it.trim()).filter(|it| it.len() > 0).unwrap_or("");
+        let (kp, qt) = Self::parse_query_type(query, query_type)?;
+        match (kp, qt, query, query.is_empty()) {
+            (_, _, _, true) => {
+                Ok(QueryVals::Origin(json.to_owned()))
             }
-            Json::Path(path) => {
-                let file = fs::File::open(&path)
-                    .map_err(|err| anyhow!("open file {} failed, {}", path.display(), err))?;
-                let json =
-                    serde_json::from_reader::<_, serde_json::Value>(file).map_err(|err| {
-                        log::debug!("{}", err);
-                        anyhow!("Invalid json format")
-                    })?;
-                Arc::new(json)
+            (Some(key_pattern), _, _, false) => {
+                let json_paths = Self::search_key_actual(&json, &key_pattern, None);
+                let mut map = BTreeMap::new();
+                for path in json_paths.into_iter() {
+                    let arr = json.query(&path).into_iter().flatten().map(|it| it.to_owned()).collect_vec();
+                    let _ = map.insert(path, arr);
+                }
+                Ok(QueryVals::KeyPattern(map))
             }
-            Json::HttpRequest(http_request) => Arc::new(http_request.try_into()?),
-            Json::JsonValue(val) => Arc::clone(val),
+            (None, Some(QueryType::JsonPath), query, false) => {
+                let query = query.trim_end_matches(".");
+                let arr = json.query(&query).into_iter().flatten().map(|it| it.to_owned()).collect_vec();
+                Ok(QueryVals::JsonPath(arr))
+            }
+            _ => {
+                unreachable!()
+            }
+        }
+    }
+
+    fn diff_prepare(&self, query: Option<&str>, query_type: Option<QueryType>) -> crate::Result<String> {
+        let json = Arc::<Value>::try_from(self)?;
+        let array = Self::query_actual(&json, query, query_type)?;
+        let pretty = serde_json::to_string_pretty(&array)?;
+        Ok(pretty)
+    }
+
+    fn search_key_actual(json: &Value, key_pattern: &KeyPattern, prefix: Option<&str>) -> Vec<Jsonpath> {
+        let jsons = match &prefix {
+            Some(prefix) => {
+                match json.query(prefix) {
+                    Ok(arr) => arr,
+                    Err(_) => vec![json],
+                }
+            }
+            None => vec![json],
         };
-        Ok(json)
+        Self::search_key_recursive(&jsons, &key_pattern, prefix.unwrap_or("$")).into_iter()
+            .unique().map(|it| Jsonpath(it)).collect_vec()
     }
 }
 
-lazy_static! {
-    static ref CMD_SPLIT_PATTERN: regex::Regex = {
-        regex::RegexBuilder::new(r"^([\w\d]+).*")
-            .multi_line(true)
-            .case_insensitive(true)
-            .build()
-            .unwrap()
-    };
+#[derive(Debug, Clone, PartialEq, Eq, Ord, PartialOrd, Hash, Serialize)]
+#[serde(transparent)]
+pub struct Jsonpath(String);
+impl Deref for Jsonpath {
+    type Target = str;
+    fn deref(&self) -> &Self::Target {
+        &self.0
+    }
 }
-impl FromStr for Json {
-    type Err = anyhow::Error;
 
-    fn from_str(value: &str) -> Result<Self, Self::Err> {
-        if let Some(string) = read_stdin() {
-            if !string.is_empty() {
-                return Ok(Self::from_str(&string)?);
+impl From<Jsonpath> for String {
+    fn from(it: Jsonpath) -> Self {
+        it.0
+    }
+}
+
+impl Json {
+    fn search_key_recursive(jsons: &[&Value], key_pattern: &KeyPattern, path: &str) -> Vec<String> {
+        jsons.iter().flat_map(|&json| {
+            match json {
+                Value::Object(map) => {
+                    let mut vec = Vec::with_capacity(map.len());
+                    for (k, v) in map {
+                        let path = format!("{}.{}", path, k);
+                        let mut children = Self::search_key_recursive(&vec![v], key_pattern, &path);
+                        if key_pattern.match_key(k) {
+                            vec.push(path);
+                        }
+                        let _ = vec.append(&mut children);
+                    }
+                    vec
+                }
+                Value::Array(array) => {
+                    let mut vec = Vec::with_capacity(array.len());
+                    let path = format!("{}.*", path);
+                    let jsons = array.iter().map(|it| it).collect_vec();
+                    let mut children = Self::search_key_recursive(&jsons, key_pattern, &path);
+                    if children.len() > 0 {
+                        let _ = vec.append(&mut children);
+                    }
+                    vec
+                }
+                _ => {
+                    vec![]
+                }
             }
-        }
-        if value.is_empty() {
-            Err(anyhow!("Invalid input"))
-        } else if let Ok(http_request) = HttpRequest::from_str(value) {
-            Ok(Json::HttpRequest(http_request))
-        } else if let Some(_cmd_path) = CMD_SPLIT_PATTERN
-            .captures(&value)
-            .map(|c| c.extract())
-            .and_then(|(_, [cmd])| which::which(cmd).ok())
-        {
-            Ok(Json::Cmd(run_cmd(value)?))
-        } else if let Ok(path) = {
-            let path = PathBuf::from_str(value)?;
-            if fs::exists(&path).unwrap_or(false) {
-                Ok(path)
-            } else {
-                Err(anyhow!("Not a valid path: {}", value))
-            }
-        } {
-            Ok(Json::Path(path))
-        } else {
-            Ok(Json::String(value.to_string()))
-        }
-    }
-}
-
-impl TryFrom<&String> for Json {
-    type Error = anyhow::Error;
-
-    fn try_from(value: &String) -> Result<Self, Self::Error> {
-        Self::from_str(value)
-    }
-}
-
-fn run_cmd(value: &str) -> crate::Result<String> {
-    let output = Command::new("sh")
-        .arg("-c")
-        .arg(value)
-        .output()
-        .map_err(|err| {
-            anyhow!(
-                r#"
-failed to execute command: {}
-{}
-"#,
-                err,
-                value
-            )
-        })?;
-    if output.status.success() {
-        let stdout = String::from_utf8(output.stdout)
-            .map_err(|err| anyhow!("failed to parse output as UTF-8: {}", err))?;
-        Ok(stdout)
-    } else {
-        let stderr = String::from_utf8_lossy(&output.stderr);
-        Err(anyhow!("run command failed: {}", stderr))
-    }
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-    use std::io::Write;
-    use tempfile::NamedTempFile;
-    use url::Url;
-
-    #[test]
-    fn test_json_from_str_string() {
-        let input = r#"{"a": 1}"#;
-        let json = Json::from_str(input).unwrap();
-        match json {
-            Json::String(s) => assert_eq!(s, input),
-            _ => panic!("Expected Json::String, got {:?}", json),
-        }
-    }
-
-    #[test]
-    fn test_json_from_str_path() {
-        let mut file = NamedTempFile::new().unwrap();
-        let content = r#"{"a": 1}"#;
-        writeln!(file, "{}", content).unwrap();
-        let path_str = file.path().to_str().unwrap();
-
-        let json = Json::from_str(path_str).unwrap();
-        match json {
-            Json::Path(p) => assert_eq!(p, file.path()),
-            _ => panic!("Expected Json::Path, got {:?}", json),
-        }
-    }
-
-    #[test]
-    fn test_json_from_str_url_http() {
-        let input = "http://example.com/api.json";
-        let json = Json::from_str(input).unwrap();
-        match json {
-            Json::HttpRequest(http_request) => {
-                let url = Url::try_from(&http_request).unwrap();
-                assert_eq!(url.as_str(), input)
-            }
-            _ => panic!("Expected Json::Uri, got {:?}", json),
-        }
-    }
-
-    #[test]
-    fn test_json_from_str_cmd() {
-        // Assume 'echo' is available
-        let input = "echo '{\"a\": 1}'";
-        let json = Json::from_str(input).unwrap();
-        match json {
-            Json::Cmd(s) => assert!(s.contains("\"a\": 1")),
-            _ => panic!("Expected Json::Cmd, got {:?}", json),
-        }
-    }
-
-    #[test]
-    fn test_json_beautify() {
-        let input = r#"{"a":1,"b":2}"#;
-        let json = Json::String(input.to_string());
-        let beautified = json.beautify(None).unwrap();
-        assert!(beautified.contains("\n  \"a\": 1,"));
-        assert!(beautified.contains("\n  \"b\": 2"));
-    }
-
-    #[test]
-    fn test_json_query() {
-        let input = r#"{"a":{"b":1},"c":2}"#;
-        let json = Json::String(input.to_string());
-        let result = json.query("$.a.b", false).unwrap();
-        assert_eq!(result, vec!["1"]);
-
-        let result = json.query("$.a", false).unwrap();
-        assert_eq!(result, vec![r#"{"b":1}"#]);
-    }
-
-    #[test]
-    fn test_json_diff_prepare() {
-        let input = r#"{"a":1,"b":2}"#;
-        let json = Json::String(input.to_string());
-
-        // No query
-        let prepared = json.diff_prepare(None).unwrap();
-        assert!(prepared.contains("\"a\": 1"));
-
-        // With query
-        let prepared = json.diff_prepare(Some("$.a")).unwrap();
-        assert_eq!(prepared, "[\n  1\n]");
-    }
-
-    #[test]
-    fn test_run_cmd_success() {
-        let result = run_cmd("echo 'hello'").unwrap();
-        assert_eq!(result.trim(), "hello");
-    }
-
-    #[test]
-    fn test_try_from_json_for_value() {
-        // Test Json::String
-        let json_str = Json::String(r#"{"a": 1}"#.to_string());
-        let value = Arc::<serde_json::Value>::try_from(&json_str).unwrap();
-        assert_eq!(value["a"], 1);
-
-        // Test Json::Path
-        let mut file = NamedTempFile::new().unwrap();
-        writeln!(file, r#"{{"b": 2}}"#).unwrap();
-        let json_path = Json::Path(file.path().to_path_buf());
-        let value = Arc::<serde_json::Value>::try_from(&json_path).unwrap();
-        assert_eq!(value["b"], 2);
-
-        // Test Json::Cmd
-        let json_cmd = Json::Cmd(r#"{"c": 3}"#.to_string());
-        let value = Arc::<serde_json::Value>::try_from(&json_cmd).unwrap();
-        assert_eq!(value["c"], 3);
-    }
-
-    #[test]
-    fn test_json_from_str_invalid() {
-        // This will be treated as Json::String because it's not a valid path, url or cmd
-        let input = "invalid json";
-        let json = Json::from_str(input).unwrap();
-        match json {
-            Json::String(s) => assert_eq!(s, input),
-            _ => panic!("Expected Json::String"),
-        }
-
-        // Test parsing invalid json from Json::String
-        let json_obj = Json::String(input.to_string());
-        let result = Arc::<serde_json::Value>::try_from(&json_obj);
-        assert!(result.is_err());
-    }
-
-    #[test]
-    fn test_run_cmd_error_output() {
-        // command exists but fails
-        let result = run_cmd("ls /non_existent_directory_12345");
-        assert!(result.is_err());
-        assert!(
-            result
-                .unwrap_err()
-                .to_string()
-                .contains("run command failed")
-        );
+        }).collect_vec()
     }
 }

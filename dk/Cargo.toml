@@ -21,6 +21,17 @@ anyhow = { workspace = true }
 tempfile = { workspace = true }
 
 [dependencies]
+regex = { version = "1.12" }
+futures = { version = "0.3" }
+tokio = { version = "1.49", features = ["rt-multi-thread"] }
+url = "2.5"
+reqwest = { version = "0.13", default-features = false, features = ["rustls"] }
+percent-encoding = "2.3"
+jsonpath-rust = "1.0"
+dateparser = { version = "0.2" }
+qrcode = { version = "0.14", features = ["image", "svg"] }
+image = "0.25"
+uuid = { version = "1.19", features = ["v4"] }
 log = { workspace = true }
 env_logger = { workspace = true }
 anyhow = { workspace = true }
@@ -30,22 +41,11 @@ lazy_static = { workspace = true }
 itertools = { workspace = true }
 derive_more = { workspace = true, features = ["display", "from", "from_str", "deref"] }
 strum = { workspace = true, features = ["derive"] }
-regex = { version = "1.12" }
-futures = { version = "0.3" }
-tokio = { version = "1.48", features = ["rt-multi-thread"] }
-url = "2.5"
-serde_urlencoded = { version = "0.7" }
-reqwest = { version = "0.13", default-features = false, features = ["rustls"] }
-serde_json = { version = "1.0" }
-percent-encoding = "2.3"
-jsonpath-rust = "1.0"
-dateparser = { version = "0.2" }
+serde = { workspace = true }
+serde_urlencoded = { workspace = true }
+serde_json = { workspace = true }
 which = { workspace = true }
-serde = { version = "1.0.228", features = ["derive"] }
-qrcode = { version = "0.14", features = ["image", "svg"] }
-image = "0.25"
-uuid = { version = "1.19", features = ["v4"] }
-base64 = { version = "0.22" }
+base64 = { workspace = true }
 [features]
 read_stdin = []
 default = ["read_stdin"]

@@ -1,5 +1,5 @@
 <script setup>
-import {ref, watch} from "vue";
+import {ref, watch, onMounted, onUnmounted} from "vue";
 import {invoke} from "@tauri-apps/api/core";
 
 const uriInput = ref("");
@@ -9,6 +9,7 @@ const showSuggestions = ref(false);
 const selectedIndex = ref(-1);
 const availableComponents = ref([]);
 const filteredSuggestions = ref([]);
+const queryContainer = ref(null);
 
 function updateFilteredSuggestions() {
   const parts = uriFilter.value.split(",");
@@ -116,6 +117,20 @@ async function copyToClipboard(e) {
 watch([uriInput, uriFilter], debounce(() => {
   handleParse();
 }));
+
+onMounted(() => {
+  const handleClickOutside = (e) => {
+    if (queryContainer.value && !queryContainer.value.contains(e.target)) {
+      showSuggestions.value = false;
+    }
+  };
+
+  document.addEventListener('click', handleClickOutside);
+
+  onUnmounted(() => {
+    document.removeEventListener('click', handleClickOutside);
+  });
+});
 </script>
 
 <template>
@@ -136,13 +151,12 @@ watch([uriInput, uriFilter], debounce(() => {
       </div>
     </div>
 
-    <div class="row filter-row">
+    <div class="row filter-row" ref="queryContainer">
       <input
         v-model="uriFilter"
         placeholder="component filter: scheme, authority, host, port, path, query (comma separated)"
         @input="showSuggestions = true; updateFilteredSuggestions()"
         @focus="showSuggestions = true; updateFilteredSuggestions()"
-        @blur="setTimeout(() => showSuggestions = false, 200)"
         @keydown="handleKeyDown"
       />
       <div v-if="showSuggestions && filteredSuggestions.length > 0" class="suggestions-dropdown">
