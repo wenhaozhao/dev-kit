@@ -1,7 +1,13 @@
 use std::path::PathBuf;
 use std::{env, fs};
 
-fn main() -> Result<(), String> {
+type Result<T> = anyhow::Result<T>;
+fn main() -> Result<()> {
+    println!("cargo:rerun-if-env-changed=CARGO_PKG_VERSION");
+
+    let _ = update_package_json()?;
+    let _ = update_tauri_config_json()?;
+
     let Workspace {
         target_triple, devkit_bin, ..
     } = get_workspace()?;
@@ -21,7 +27,47 @@ fn main() -> Result<(), String> {
     Ok(())
 }
 
-fn get_workspace() -> Result<Workspace, String> {
+fn update_package_json() -> Result<()> {
+    use serde_json::{
+        from_reader, to_string_pretty, Value,
+    };
+    let version = env::var("CARGO_PKG_VERSION")?;
+    let Ok(Value::Object(mut package_json)) = from_reader::<_, Value>(
+        fs::File::open("../package.json")?
+    )else {
+        return Err(anyhow::anyhow!("failed to parse ../package.json"));
+    };
+    let Some(Value::String(before_version)) = package_json.get("version")else {
+        return Err(anyhow::anyhow!("version not exist"));
+    };
+    if !before_version.eq_ignore_ascii_case(&version) {
+        let _ = package_json.insert(String::from("version"), Value::String(version));
+        fs::write("../package.json", to_string_pretty(&package_json)?)?;
+    }
+    Ok(())
+}
+
+fn update_tauri_config_json() -> Result<()> {
+    use serde_json::{
+        from_reader, to_string_pretty, Value,
+    };
+    let version = env::var("CARGO_PKG_VERSION")?;
+    let Ok(Value::Object(mut package_json)) = from_reader::<_, Value>(
+        fs::File::open("./tauri.conf.json")?
+    )else {
+        return Err(anyhow::anyhow!("failed to parse ./tauri.conf.json"));
+    };
+    let Some(Value::String(before_version)) = package_json.get("version")else {
+        return Err(anyhow::anyhow!("version not exist"));
+    };
+    if !before_version.eq_ignore_ascii_case(&version) {
+        let _ = package_json.insert(String::from("version"), Value::String(version));
+        fs::write("./tauri.conf.json", to_string_pretty(&package_json)?)?;
+    }
+    Ok(())
+}
+
+fn get_workspace() -> Result<Workspace> {
     let target_triple = env::var("TARGET").expect("TARGET is not set");
     let cargo_manifest_dir = env::var("CARGO_MANIFEST_DIR").expect("CARGO_MANIFEST_DIR is not set");
     let cargo_manifest_dir = PathBuf::from(cargo_manifest_dir);
