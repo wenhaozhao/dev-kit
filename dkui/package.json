@@ -1,14 +1,4 @@
 {
-  "name": "dkui",
-  "private": true,
-  "version": "0.1.9",
-  "type": "module",
-  "scripts": {
-    "dev": "vite",
-    "build": "vite build",
-    "preview": "vite preview",
-    "tauri": "tauri"
-  },
   "dependencies": {
     "@tauri-apps/api": "^2",
     "@tauri-apps/plugin-dialog": "^2.6.0",
@@ -20,5 +10,15 @@
     "@tauri-apps/cli": "^2",
     "@vitejs/plugin-vue": "^5.2.1",
     "vite": "^6.0.3"
-  }
+  },
+  "name": "dkui",
+  "private": true,
+  "scripts": {
+    "build": "vite build",
+    "dev": "vite",
+    "preview": "vite preview",
+    "tauri": "tauri"
+  },
+  "type": "module",
+  "version": "0.1.10"
 }

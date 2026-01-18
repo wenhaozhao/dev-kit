@@ -1,31 +1,28 @@
 {
   "$schema": "https://schema.tauri.app/config/2",
-  "productName": "DevKit",
-  "version": "0.1.9",
-  "identifier": "vip.mhlife.dkui",
-  "build": {
-    "beforeDevCommand": "npm run dev",
-    "devUrl": "http://localhost:1420",
-    "beforeBuildCommand": "npm run build",
-    "frontendDist": "../dist"
-  },
   "app": {
-    "windows": [
-      {
-        "title": "DevKit",
-        "width": 1024,
-        "height": 768,
-        "minWidth": 1024,
-        "minHeight": 768
-      }
-    ],
     "security": {
       "csp": null
-    }
+    },
+    "windows": [
+      {
+        "height": 768,
+        "minHeight": 768,
+        "minWidth": 1024,
+        "title": "DevKit",
+        "width": 1024
+      }
+    ]
+  },
+  "build": {
+    "beforeBuildCommand": "npm run build",
+    "beforeDevCommand": "npm run dev",
+    "devUrl": "http://localhost:1420",
+    "frontendDist": "../dist"
   },
   "bundle": {
     "active": true,
-    "targets": "all",
+    "externalBin": [],
     "icon": [
       "icons/32x32.png",
       "icons/128x128.png",
@@ -33,7 +30,9 @@
       "icons/icon.icns",
       "icons/icon.ico"
     ],
-    "externalBin":[
-    ]
-  }
+    "targets": "all"
+  },
+  "identifier": "vip.mhlife.dkui",
+  "productName": "DevKit",
+  "version": "0.1.10"
 }
