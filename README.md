@@ -58,25 +58,31 @@ All JSON tools support the following input types:
   ```
 
 #### Commands:
-- **Beauty**: Format JSON strings or files. Supports alias `format`.
+- **Beauty**: Format JSON strings or files. Supports aliases `b`, `query`, `q`, `search`, `s`, `format`, `f`.
   ```shell
+  # Format
   $ devkit json beauty '{"a":1,"b":2}'
   {
     "a": 1,
     "b": 2
   }
-  ```
-- **Query**: Extract content using JSONPath. Supports alias `search`.
-  ```shell
+
+  # Query with JSONPath
   $ devkit json query -q '$.a' '{"a":1,"b":2}'
   1
+
+  # Query with Prefix/Suffix/Contains/Regex (Auto detect or specify)
+  $ devkit json query -q 'items' '{"items":[1,2,3]}'
+  [1,2,3]
   ```
-- **Diff**: Compare two JSON objects, supports comparison after JSONPath extraction, and can call external Diff tools (e.g., IDEA, VSCode, Zed).
+- **Diff**: Compare two JSON objects, supports comparison after JSONPath extraction, and can call external Diff tools (e.g., IDEA, VSCode, Zed). Supports alias `d`.
   ```shell
   $ devkit json diff '{"a":1}' '{"a":2}' --diff-tool vscode
   ```
 - **Options**:
-    - `-q, --query <JSONPATH>`: Extract content using JSONPath before processing.
+    - `-q, --query <QUERY>`: Extract content using JSONPath or Key pattern before processing.
+    - `--query-type <TYPE>`: Query type: `jsonpath` (jp), `prefix` (p), `suffix` (s), `contains` (c), `regex` (r). Auto-detects if not set.
+    - `--beauty`: Beauty output.
     - `-f, --file <FILE>`: Write output to a file (for Beauty and Query).
     - `--diff-tool <TOOL>`: Diff tool to use: `idea`, `vscode`, `zed`, etc.
 
@@ -105,12 +111,13 @@ All JSON tools support the following input types:
   1698372000000
   ```
 - **Options**:
-    - `-z, --tz <TIMEZONE>`: Specify timezone (e.g., `+08:00`).
+    - `-t, --tz, --timezone <TIMEZONE>`: Specify timezone (e.g., `+08:00`).
     - `-f, --format <FORMAT>`: Output format: `rfc3339`, `ts`, or custom format (e.g., `%Y-%m-%d`).
     - `--iu, --input-unit <UNIT>`: Input timestamp unit: `s`, `ms`.
     - `--ou, --output-unit <UNIT>`: Output timestamp unit: `s`, `ms`.
 
 ### 4. Base64 Tools
+Supports alias `b64`.
 - **Encode**: Encode string to Base64. Supports alias `e`.
   ```shell
   $ devkit base64 encode 'hello world'
@@ -124,22 +131,23 @@ All JSON tools support the following input types:
 - **Options**:
     - `-u, --url-safe`: Use URL-safe Base64.
     - `-n, --no-pad`: No padding.
+    - `-r, --raw-output`: Raw output (for Decode).
     - `-f, --file <FILE>`: Write output to a file.
 
 ### 5. QR Code Tools
-Generate QR codes from text or URLs. Supports alias `qrcode`, `qr`.
-- **Generate**:
+Generate QR codes from text or URLs. Supports alias `qr`.
+- **Usage**:
   ```shell
   # Output as text (default)
-  $ devkit qrcode 'https://github.com'
+  $ devkit qrcode 'https://github.com/wenhaozhao/dev-kit'
 
   # Save as image
-  $ devkit qrcode 'https://github.com' -t image -f qr.png
+  $ devkit qrcode 'https://github.com/wenhaozhao/dev-kit' -o image -f qr.png
   ```
 - **Options**:
-    - `-t, --type <TYPE>`: Output type: `text` (default), `image`, `svg`.
-    - `-e, --ec-level <LEVEL>`: Error correction level: `l` (7%), `m` (15%), `q` (25%), `h` (30%).
-    - `-v, --version <VERSION>`: QR code version (1-40).
+    - `-o, --output-type, --type <TYPE>`: Output type: `text` (default), `image`, `svg`.
+    - `-e, --ec-level, --ecl <LEVEL>`: Error correction level: `l` (7%), `m` (15%), `q` (25%), `h` (30%).
+    - `-v, --version <VERSION>`: QR code version (1-40 or `auto`).
     - `-p, --plain`: Plain text output without details.
 
 ## Installation
