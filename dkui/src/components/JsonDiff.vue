@@ -260,9 +260,10 @@ function handleKeyDown(e) {
     e.preventDefault();
     selectedIndex.value = (selectedIndex.value - 1 + jsonKeys.value.length) % jsonKeys.value.length;
   } else if (e.key === 'Enter') {
+    debugger
     if (selectedIndex.value >= 0) {
       e.preventDefault();
-      appendToQuery(jsonKeys.value[selectedIndex.value]);
+      appendToQuery(jsonKeys.value[selectedIndex.value].path);
     }
   } else if (e.key === 'Escape') {
     showSuggestions.value = false;
@@ -359,7 +360,7 @@ watch([jsonLeftInput, jsonRightInput, jsonQuery], debounce(() => {
       </div>
     </div>
     <div class="row query-row" ref="queryContainer">
-      <input v-model="jsonQuery" placeholder="json path filter" 
+      <input v-model="jsonQuery" placeholder="json path/key/val filter"
         @input="showSuggestions = true"
         @focus="showSuggestions = true"
         @blur="setTimeout(() => showSuggestions = false, 200)"
@@ -375,11 +376,11 @@ watch([jsonLeftInput, jsonRightInput, jsonQuery], debounce(() => {
         </button>
       </div>
       <div v-if="showSuggestions && jsonKeys.length > 0" class="suggestions-dropdown">
-        <div v-for="(key, index) in jsonKeys" :key="key" 
+        <div v-for="(key, index) in jsonKeys" :key="key.path"
           class="suggestion-item" 
           :class="{ active: index === selectedIndex }"
-          @mousedown.prevent="appendToQuery(key)">
-          {{ key }}
+          @mousedown.prevent="appendToQuery(key.path)">
+          {{ key.path }} {{ !!key.val ? ` -> ${key.val}` : '' }}
         </div>
       </div>
     </div>

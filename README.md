@@ -71,16 +71,44 @@ All JSON tools support the following input types:
   $ devkit json query -q '$.a' '{"a":1,"b":2}'
   1
 
-  # Query with Prefix/Suffix/Contains/Regex (Auto detect or specify)
+  # Query with key pattern: contains 'items'
   $ devkit json query -q 'items' '{"items":[1,2,3]}'
-  [1,2,3]
+  {
+    "$.items": [
+      [
+        1,
+        2,
+        3
+      ]
+    ]
+  }
+  
+  # Query with value pattern: digit only
+  $ devkit json query -q '\d' '{"items":[1,2,3]}'
+  {
+    "$.items[*]": [
+      1, 
+      2, 
+      3
+    ],
+    "$.items[0]": [
+      1
+    ],
+    "$.items[1]": [
+      2
+    ],
+    "$.items[2]": [
+      3
+    ]
+  }
+  
   ```
 - **Diff**: Compare two JSON objects, supports comparison after JSONPath extraction, and can call external Diff tools (e.g., IDEA, VSCode, Zed). Supports alias `d`.
   ```shell
   $ devkit json diff '{"a":1}' '{"a":2}' --diff-tool vscode
   ```
 - **Options**:
-    - `-q, --query <QUERY>`: Extract content using JSONPath or Key pattern before processing.
+    - `-q, --query <QUERY>`: Extract content using JSONPath/Key/Value pattern before processing.
     - `--query-type <TYPE>`: Query type: `jsonpath` (jp), `prefix` (p), `suffix` (s), `contains` (c), `regex` (r). Auto-detects if not set.
     - `--beauty`: Beauty output.
     - `-f, --file <FILE>`: Write output to a file (for Beauty and Query).

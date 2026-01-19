@@ -1,4 +1,5 @@
-use dev_kit::command::json::{DiffTool, Json, QueryType};
+use dev_kit::command::json::{DiffTool, Json, JsonpathMatch, QueryType};
+use itertools::Itertools;
 use std::collections::HashMap;
 use std::str::FromStr;
 use std::sync::{Arc, Mutex};
@@ -49,13 +50,17 @@ pub fn search_json_paths(
     json: String,
     query: Option<String>,
     query_type: Option<String>,
-) -> Result<Vec<String>, String> {
+) -> Result<Vec<JsonpathMatch>, String> {
     let value = cache.lock().unwrap().get_or_parse(&json)?;
     let query_type = query_type.and_then(|s| QueryType::from_str(&s).ok());
-    let keys = value.search_paths(
-        query.as_deref(), query_type,
-    ).map(|arr|arr.into_iter().map(|it|it.into()).collect::<_>()).map_err(|e| e.to_string())?;
-    Ok(keys)
+    match value.search_paths(query.as_deref(), query_type) {
+        Ok(arr) => {
+            Ok(arr.into_iter().map(|it| it.into()).collect_vec())
+        }
+        Err(err) => {
+            Err(err.to_string())
+        }
+    }
 }
 
 #[tauri::command]

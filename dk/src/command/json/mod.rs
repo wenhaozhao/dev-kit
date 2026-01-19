@@ -11,7 +11,7 @@ pub enum JsonCommand {
     Beauty {
         #[arg(help = "json input, support string, file-path, url, cmd", default_value = "")]
         json: Json,
-        #[arg(short, long, help = "json query to extract")]
+        #[arg(short, long, help = "extract content using jsonpath/key/value pattern")]
         query: Option<String>,
         #[arg(long, help = "json query type, alias `qt`, jsonpath(jp)/prefix(p)/suffix(s)/contains(c)/regex(r), and will auto detect if not set", alias = "qt")]
         query_type: Option<QueryType>,
@@ -26,7 +26,7 @@ pub enum JsonCommand {
         left: Json,
         #[arg(help = "json input, support string, file-path, url, cmd", default_value = "")]
         right: Json,
-        #[arg(short, long, help = "json path to extract")]
+        #[arg(short, long, help = "extract content using jsonpath/key/value pattern")]
         query: Option<String>,
         #[arg(long, help = "json query type, alias `qt`, jsonpath(jp)/prefix(p)/suffix(s)/contains(c)/regex(r), and will auto detect if not set", alias = "qt")]
         query_type: Option<QueryType>,
@@ -93,6 +93,7 @@ pub enum KeyPatternType {
 
 mod type_;
 mod json;
+pub use json::JsonpathMatch;
 
 #[derive(Debug, Copy, Clone, Display, EnumIter)]
 pub enum DiffTool {

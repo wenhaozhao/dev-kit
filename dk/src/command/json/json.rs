@@ -1,16 +1,16 @@
 use super::{DiffTool, Json, KeyPatternType, QueryType};
 use itertools::Itertools;
 use jsonpath_rust::JsonPath;
+use lazy_static::lazy_static;
 use serde::ser::Error;
 use serde::{Serialize, Serializer};
 use serde_json::Value;
 use std::collections::BTreeMap;
-use std::ops::Deref;
 use std::sync::Arc;
 use std::{env, fs};
 
 impl Json {
-    pub fn search_paths(&self, query: Option<&str>, query_type: Option<QueryType>) -> crate::Result<Vec<Jsonpath>> {
+    pub fn search_paths(&self, query: Option<&str>, query_type: Option<QueryType>) -> crate::Result<Vec<JsonpathMatch>> {
         let json = Arc::<Value>::try_from(self)?;
         let query = query.map(|it| it.trim()).filter(|it| it.len() > 0).unwrap_or("");
         let (kp, qt) = Self::parse_query_type(query, query_type)?;
@@ -27,16 +27,16 @@ impl Json {
                 } else {
                     (query, None)
                 };
-                match (prefix, keyword, keyword.unwrap_or("").is_empty()){
+                match (prefix, keyword, keyword.unwrap_or("").is_empty()) {
                     (prefix, Some(keyword), false) => {
-                        Ok(Self::search_key_actual(&json, &KeyPattern::Prefix(keyword.to_lowercase()), Some(prefix)))
+                        Ok(Self::search_key_actual(&json, &KeyPattern::guess(keyword)?, Some(prefix)))
                     }
-                    (prefix,_,_) => {
+                    (prefix, _, _) => {
                         Ok(json.query(prefix)?.iter().flat_map(|it| match it {
                             Value::Object(map) => map.keys().map(|k| k.to_string()).collect_vec(),
                             Value::Array(_) => vec!["*".to_string()],
                             _ => vec![],
-                        }).unique().map(|it| Jsonpath(it)).collect_vec())
+                        }).unique().map(|it| it.into()).collect_vec())
                     }
                 }
             }
@@ -162,6 +162,7 @@ impl KeyPattern {
     }
 
     fn guess(key_pattern: &str) -> crate::Result<Self> {
+        let key_pattern = key_pattern.trim();
         match regex::RegexBuilder::new(key_pattern).case_insensitive(true).build() {
             Ok(regex) => {
                 Ok(Self::Regex(regex))
@@ -234,7 +235,7 @@ impl Json {
             (Some(key_pattern), _, _, false) => {
                 let json_paths = Self::search_key_actual(&json, &key_pattern, None);
                 let mut map = BTreeMap::new();
-                for path in json_paths.into_iter() {
+                for path in json_paths.into_iter().map(|it| it.take_jsonpath()).collect_vec() {
                     let arr = json.query(&path).into_iter().flatten().map(|it| it.to_owned()).collect_vec();
                     let _ = map.insert(path, arr);
                 }
@@ -258,7 +259,7 @@ impl Json {
         Ok(pretty)
     }
 
-    fn search_key_actual(json: &Value, key_pattern: &KeyPattern, prefix: Option<&str>) -> Vec<Jsonpath> {
+    fn search_key_actual(json: &Value, key_pattern: &KeyPattern, prefix: Option<&str>) -> Vec<JsonpathMatch> {
         let jsons = match &prefix {
             Some(prefix) => {
                 match json.query(prefix) {
@@ -269,51 +270,71 @@ impl Json {
             None => vec![json],
         };
         Self::search_key_recursive(&jsons, &key_pattern, prefix.unwrap_or("$")).into_iter()
-            .unique().map(|it| Jsonpath(it)).collect_vec()
+            .unique().collect_vec()
     }
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Ord, PartialOrd, Hash, Serialize)]
-#[serde(transparent)]
-pub struct Jsonpath(String);
-impl Deref for Jsonpath {
-    type Target = str;
-    fn deref(&self) -> &Self::Target {
-        &self.0
-    }
+#[serde(untagged)]
+pub enum JsonpathMatch {
+    Key(MatchKey),
+    Val(MatchVal),
 }
 
-impl From<Jsonpath> for String {
-    fn from(it: Jsonpath) -> Self {
-        it.0
-    }
-}
+mod jsonpath_match;
+pub use jsonpath_match::*;
 
 impl Json {
-    fn search_key_recursive(jsons: &[&Value], key_pattern: &KeyPattern, path: &str) -> Vec<String> {
+    fn search_key_recursive(jsons: &[&Value], key_pattern: &KeyPattern, path: &str) -> Vec<JsonpathMatch> {
         jsons.iter().flat_map(|&json| {
             match json {
                 Value::Object(map) => {
                     let mut vec = Vec::with_capacity(map.len());
                     for (k, v) in map {
-                        let path = format!("{}.{}", path, k);
+                        lazy_static! {
+                            static ref START_NUM_PATTERN: regex::Regex = regex::Regex::new(r"^\d+$").unwrap();
+                        }
+                        let path = if START_NUM_PATTERN.is_match(k) {
+                            format!("{}['{}']", path, k)
+                        } else {
+                            format!("{}.{}", path, k)
+                        };
                         let mut children = Self::search_key_recursive(&vec![v], key_pattern, &path);
                         if key_pattern.match_key(k) {
-                            vec.push(path);
+                            vec.push(JsonpathMatch::from(path.as_str()));
                         }
                         let _ = vec.append(&mut children);
                     }
                     vec
                 }
                 Value::Array(array) => {
-                    let mut vec = Vec::with_capacity(array.len());
-                    let path = format!("{}.*", path);
-                    let jsons = array.iter().map(|it| it).collect_vec();
-                    let mut children = Self::search_key_recursive(&jsons, key_pattern, &path);
-                    if children.len() > 0 {
+                    let mut vec = Vec::with_capacity(array.len() + 1);
+                    vec.push(format!("{}[*]", path).into());
+                    for (idx, json) in array.iter().enumerate() {
+                        let path = format!("{}[{}]", path, idx);
+                        let mut children = Self::search_key_recursive(&vec![json], key_pattern, &path);
                         let _ = vec.append(&mut children);
                     }
-                    vec
+                    if vec.len() > 1 {
+                        vec
+                    } else {
+                        vec![]
+                    }
+                }
+                v @ Value::Bool(_) | v @ Value::Number(_) => {
+                    let string_val = v.to_string();
+                    if key_pattern.match_key(&string_val) {
+                        vec![JsonpathMatch::from((path, v))]
+                    } else {
+                        vec![]
+                    }
+                }
+                v @ Value::String(string_val) => {
+                    if key_pattern.match_key(string_val) {
+                        vec![JsonpathMatch::from((path, v))]
+                    } else {
+                        vec![]
+                    }
                 }
                 _ => {
                     vec![]

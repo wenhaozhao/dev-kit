@@ -13,7 +13,7 @@ crate-type = ["staticlib", "cdylib", "rlib"]
 
 [build-dependencies]
 tauri-build = { version = "2", features = [] }
-anyhow = {workspace = true}
+anyhow = { workspace = true }
 serde_json = { workspace = true }
 
 [dependencies]
@@ -28,3 +28,4 @@ strum = { workspace = true, features = ["derive"] }
 dev-kit = { path = "../../dk", default-features = false }
 which = { workspace = true }
 lazy_static = { workspace = true }
+itertools = { workspace = true }
