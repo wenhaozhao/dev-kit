@@ -12,7 +12,6 @@ import QrCodeGenerator from "./components/QrCodeGenerator.vue";
 import Base64Parser from "./components/Base64Parser.vue";
 
 const jsonInput = ref("");
-const jsonRightInput = ref("");
 const jsonQuery = ref("");
 const currentTab = ref("json");
 
@@ -45,10 +44,6 @@ const addToPath = async () => {
 
 function updateJson(val) {
   jsonInput.value = val;
-}
-
-function updateRightJson(val) {
-  jsonRightInput.value = val;
 }
 
 function updateQuery(val) {
@@ -88,7 +83,7 @@ function updateQuery(val) {
 
     <KeepAlive>
       <JsonParser v-if="currentTab === 'json'" 
-        :initialJson="jsonInput" 
+        :initialJson="jsonInput"
         :initialQuery="jsonQuery"
         @update:json="updateJson"
         @update:query="updateQuery" />
@@ -97,10 +92,8 @@ function updateQuery(val) {
     <KeepAlive>
       <JsonDiff v-if="currentTab === 'diff'" 
         :initialLeftJson="jsonInput"
-        :initialRightJson="jsonRightInput"
         :initialQuery="jsonQuery"
         @update:leftJson="updateJson"
-        @update:rightJson="updateRightJson"
         @update:query="updateQuery" />
     </KeepAlive>
 

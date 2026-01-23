@@ -302,7 +302,6 @@ watch([jsonLeftInput, jsonRightInput, jsonQuery], debounce(() => {
   queryLeftJson();
   queryRightJson();
   emit('update:leftJson', jsonLeftInput.value);
-  emit('update:rightJson', jsonRightInput.value);
   emit('update:query', jsonQuery.value);
 }));
 </script>
