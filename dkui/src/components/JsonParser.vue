@@ -17,6 +17,7 @@ const emit = defineEmits(['update:json', 'update:query']);
 const jsonInput = ref(props.initialJson || "");
 const jsonOutput = ref("");
 const jsonQuery = ref(props.initialQuery || "");
+const jsonQuerying = ref(false);
 const jsonKeys = ref([]);
 const selectedIndex = ref(-1);
 const showSuggestions = ref(false);
@@ -24,8 +25,6 @@ const isDragging = ref(false);
 const queryContainer = ref(null);
 
 const { debounce } = useDebounce();
-
-const lastSuccessfulOutput = ref("");
 
 const parsedJsonOutput = computed(() => {
   if (!jsonOutput.value || jsonOutput.value.startsWith("Error: ")) {
@@ -56,24 +55,20 @@ async function openFile() {
   }
 }
 
-async function queryJson() {
+async function queryJson(reload = false) {
   if (!jsonInput.value) {
     jsonOutput.value = "";
     jsonKeys.value = [];
-    lastSuccessfulOutput.value = "";
     return;
   }
+  jsonQuerying.value = true;
   try {
-    jsonOutput.value = await invoke("query_json", { json: jsonInput.value, query:  jsonQuery.value });
-    lastSuccessfulOutput.value = jsonOutput.value;
+    jsonOutput.value = await invoke("query_json", {json: jsonInput.value, query: jsonQuery.value, reload});
   } catch (e) {
-    if (lastSuccessfulOutput.value) {
-      jsonOutput.value = lastSuccessfulOutput.value;
-    } else {
-      jsonOutput.value = "Error: " + e;
-    }
+    jsonOutput.value = "Error: " + e;
+  } finally {
+    jsonQuerying.value = false
   }
-
   await updateKeys();
 }
 
@@ -205,6 +200,14 @@ onMounted(async () => {
       <div class="textarea-container" :class="{ dragging: isDragging }">
         <textarea v-model="jsonInput" placeholder="Enter JSON..." rows="5"></textarea>
         <div class="textarea-actions">
+          <button v-if="jsonInput" class="action-button" @click="queryJson(true)" title="Run" :disabled="jsonQuerying">
+            <svg v-if="!jsonQuerying" viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <polygon points="5 3 19 12 5 21 5 3"></polygon>
+            </svg>
+            <svg v-else class="spinner" viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <path d="M21 12a9 9 0 1 1-6.219-8.56"></path>
+            </svg>
+          </button>
           <button class="action-button" @click="openFile" title="Open File">
             <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
               <path d="M13 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V9z"></path>
@@ -348,6 +351,21 @@ textarea {
 .action-button:hover {
   background: rgba(0, 0, 0, 0.15);
   color: #333;
+}
+
+.action-button:disabled {
+  cursor: not-allowed;
+  opacity: 0.6;
+}
+
+.spinner {
+  animation: rotate 2s linear infinite;
+}
+
+@keyframes rotate {
+  100% {
+    transform: rotate(360deg);
+  }
 }
 
 button {

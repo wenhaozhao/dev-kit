@@ -29,3 +29,5 @@ dev-kit = { path = "../../dk", default-features = false }
 which = { workspace = true }
 lazy_static = { workspace = true }
 itertools = { workspace = true }
+sha2 = { workspace = true }
+hex = { workspace = true }

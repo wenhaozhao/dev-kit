@@ -35,9 +35,6 @@ let isSyncing = false;
 
 const { debounce } = useDebounce();
 
-const lastSuccessfulOutput = ref("");
-const lastSuccessfulRightOutput = ref("");
-
 const parsedJsonOutput = computed(() => {
   if (!jsonOutput.value || jsonOutput.value.startsWith("Error: ")) {
     return null;
@@ -173,21 +170,14 @@ async function queryJson() {
     jsonOutput.value = "";
     jsonRightOutput.value = "";
     jsonKeys.value = [];
-    lastSuccessfulOutput.value = "";
-    lastSuccessfulRightOutput.value = "";
     return;
   }
 
   if (jsonLeftInput.value) {
     try {
-      jsonOutput.value = await invoke("query_json", { json: jsonLeftInput.value, query: jsonQuery.value });
-      lastSuccessfulOutput.value = jsonOutput.value;
+      jsonOutput.value = await invoke("query_json", { json: jsonLeftInput.value, query: jsonQuery.value, reload: false });
     } catch (e) {
-      if (lastSuccessfulOutput.value) {
-        jsonOutput.value = lastSuccessfulOutput.value;
-      } else {
-        jsonOutput.value = "Error: " + e;
-      }
+      jsonOutput.value = "Error: " + e;
     }
   } else {
     jsonOutput.value = "";
@@ -195,14 +185,9 @@ async function queryJson() {
 
   if (jsonRightInput.value) {
     try {
-      jsonRightOutput.value = await invoke("query_json", { json: jsonRightInput.value, query: jsonQuery.value });
-      lastSuccessfulRightOutput.value = jsonRightOutput.value;
+      jsonRightOutput.value = await invoke("query_json", { json: jsonRightInput.value, query: jsonQuery.value, reload: false });
     } catch (e) {
-      if (lastSuccessfulRightOutput.value) {
-        jsonRightOutput.value = lastSuccessfulRightOutput.value;
-      } else {
-        jsonRightOutput.value = "Error: " + e;
-      }
+      jsonRightOutput.value = "Error: " + e;
     }
   } else {
     jsonRightOutput.value = "";

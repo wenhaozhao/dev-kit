@@ -1,5 +1,6 @@
 use dev_kit::command::json::{DiffTool, Json, JsonpathMatch, QueryType};
 use itertools::Itertools;
+use sha2::Digest;
 use std::collections::HashMap;
 use std::str::FromStr;
 use std::sync::{Arc, Mutex};
@@ -10,8 +11,13 @@ pub struct JsonCache {
 }
 
 impl JsonCache {
-    fn get_or_parse(&mut self, json_str: &str) -> Result<Json, String> {
-        if let Some(parsed) = self.cache.get(json_str) {
+    fn get_or_parse(&mut self, tab_id: &str, json_str: &str, reload: bool) -> Result<Json, String> {
+        let json_sha = {
+            let json_sha = &sha2::Sha256::digest(json_str.as_bytes())[..];
+            hex::encode(json_sha)
+        };
+        let cache_key = format!("{}:{}", tab_id, json_sha);
+        if let (false, Some(parsed)) = (reload, self.cache.get(&cache_key)) {
             return Ok(parsed.clone());
         }
         let json = {
@@ -23,7 +29,7 @@ impl JsonCache {
         if self.cache.len() > 1 {
             self.cache.clear();
         }
-        self.cache.insert(json_str.to_string(), json.clone());
+        self.cache.insert(cache_key, json.clone());
         Ok(json)
     }
 }
@@ -34,8 +40,9 @@ pub fn query_json(
     json: String,
     query: Option<String>,
     query_type: Option<String>,
+    reload: bool,
 ) -> Result<String, String> {
-    let value = cache.lock().unwrap().get_or_parse(&json)?;
+    let value = cache.lock().unwrap().get_or_parse("tab_0", &json, reload)?;
     let arr = value.query(
         query.as_deref(), query_type.and_then(|s|
             QueryType::from_str(&s).ok()
@@ -51,7 +58,7 @@ pub fn search_json_paths(
     query: Option<String>,
     query_type: Option<String>,
 ) -> Result<Vec<JsonpathMatch>, String> {
-    let value = cache.lock().unwrap().get_or_parse(&json)?;
+    let value = cache.lock().unwrap().get_or_parse("tab_0", &json, false)?;
     let query_type = query_type.and_then(|s| QueryType::from_str(&s).ok());
     match value.search_paths(query.as_deref(), query_type) {
         Ok(arr) => {
@@ -72,8 +79,8 @@ pub fn diff_json(
     query_type: Option<String>,
     diff_tool: Option<String>,
 ) -> Result<(), String> {
-    let left_val = cache.lock().unwrap().get_or_parse(&left)?;
-    let right_val = cache.lock().unwrap().get_or_parse(&right)?;
+    let left_val = cache.lock().unwrap().get_or_parse("tab_0", &left, false)?;
+    let right_val = cache.lock().unwrap().get_or_parse("tab_0", &right, false)?;
     let query_type = query_type.and_then(|s|
         QueryType::from_str(&s).ok()
     );
