@@ -1,9 +1,9 @@
 <script setup>
-import { ref, onMounted, onUnmounted, watch, computed } from "vue";
-import { invoke } from "@tauri-apps/api/core";
-import { listen } from "@tauri-apps/api/event";
-import { save, open } from "@tauri-apps/plugin-dialog";
-import { useDebounce } from "../composables/useDebounce";
+import {computed, onMounted, onUnmounted, ref, watch} from "vue";
+import {invoke} from "@tauri-apps/api/core";
+import {listen} from "@tauri-apps/api/event";
+import {open, save} from "@tauri-apps/plugin-dialog";
+import {useDebounce} from "../composables/useDebounce";
 import VueJsonPretty from 'vue-json-pretty';
 import 'vue-json-pretty/lib/styles.css';
 
@@ -17,9 +17,11 @@ const emit = defineEmits(['update:leftJson', 'update:rightJson', 'update:query']
 
 const jsonLeftInput = ref(props.initialLeftJson || "");
 const jsonRightInput = ref(props.initialRightJson || "");
-const jsonOutput = ref("");
+const jsonLeftOutput = ref("");
 const jsonRightOutput = ref("");
 const jsonQuery = ref(props.initialQuery || "");
+const jsonLeftQuerying = ref(false);
+const jsonRightQuerying = ref(false);
 const diffTool = ref("");
 const availableDiffTools = ref([]);
 const jsonKeys = ref([]);
@@ -36,13 +38,13 @@ let isSyncing = false;
 const { debounce } = useDebounce();
 
 const parsedJsonOutput = computed(() => {
-  if (!jsonOutput.value || jsonOutput.value.startsWith("Error: ")) {
+  if (!jsonLeftOutput.value || jsonLeftOutput.value.startsWith("Error: ")) {
     return null;
   }
   try {
-    return JSON.parse(jsonOutput.value);
+    return JSON.parse(jsonLeftOutput.value);
   } catch (e) {
-    return jsonOutput.value;
+    return jsonLeftOutput.value;
   }
 });
 
@@ -83,9 +85,14 @@ onMounted(async () => {
   if (leftTextarea.value) observer.observe(leftTextarea.value);
   if (rightTextarea.value) observer.observe(rightTextarea.value);
 
-  if (jsonLeftInput.value || jsonRightInput.value) {
-    queryJson();
+  if (jsonLeftInput.value) {
+    queryLeftJson();
   }
+
+  if (jsonRightInput.value) {
+    queryRightJson();
+  }
+
 
   await listen("tauri://drag-drop", (event) => {
     const paths = event.payload.paths;
@@ -165,46 +172,46 @@ async function openRightFile() {
   }
 }
 
-async function queryJson() {
-  if (!jsonLeftInput.value && !jsonRightInput.value) {
-    jsonOutput.value = "";
-    jsonRightOutput.value = "";
+async function queryLeftJson(reload = false) {
+  if (!jsonLeftInput.value) {
+    jsonLeftOutput.value = "";
     jsonKeys.value = [];
     return;
   }
-
-  if (jsonLeftInput.value) {
-    try {
-      jsonOutput.value = await invoke("query_json", { json: jsonLeftInput.value, query: jsonQuery.value, reload: false });
-    } catch (e) {
-      jsonOutput.value = "Error: " + e;
-    }
-  } else {
-    jsonOutput.value = "";
+  jsonLeftQuerying.value = true;
+  try {
+    jsonLeftOutput.value = await invoke("query_json", {json: jsonLeftInput.value, query: jsonQuery.value, reload});
+  } catch (e) {
+    jsonLeftOutput.value = "Error: " + e;
+  } finally {
+    jsonLeftQuerying.value = false;
   }
-
-  if (jsonRightInput.value) {
-    try {
-      jsonRightOutput.value = await invoke("query_json", { json: jsonRightInput.value, query: jsonQuery.value, reload: false });
-    } catch (e) {
-      jsonRightOutput.value = "Error: " + e;
-    }
-  } else {
-    jsonRightOutput.value = "";
-  }
-
   await updateKeys();
+}
+
+async function queryRightJson(reload = false) {
+  if (!jsonRightInput.value) {
+    jsonRightOutput.value = "";
+    return;
+  }
+  jsonRightQuerying.value = true;
+  try {
+    jsonRightOutput.value = await invoke("query_json", {json: jsonRightInput.value, query: jsonQuery.value, reload});
+  } catch (e) {
+    jsonRightOutput.value = "Error: " + e;
+  } finally {
+    jsonRightQuerying.value = false;
+  }
 }
 
 async function updateKeys() {
   try {
-    const jsonToProcess = jsonLeftInput.value || jsonRightInput.value;
-    if (!jsonToProcess) {
+    if (!jsonLeftInput.value) {
       jsonKeys.value = [];
       return;
     }
     const paths = await invoke("search_json_paths", {
-      json: jsonToProcess,
+      json: jsonLeftInput.value,
       query: jsonQuery.value || null
     });
     if (paths.length > 0) {
@@ -245,7 +252,6 @@ function handleKeyDown(e) {
     e.preventDefault();
     selectedIndex.value = (selectedIndex.value - 1 + jsonKeys.value.length) % jsonKeys.value.length;
   } else if (e.key === 'Enter') {
-    debugger
     if (selectedIndex.value >= 0) {
       e.preventDefault();
       appendToQuery(jsonKeys.value[selectedIndex.value].path);
@@ -258,14 +264,14 @@ function handleKeyDown(e) {
 
 async function diffJson() {
   try {
-    await invoke("diff_json", { 
+    await invoke("diff_json", {
       left: jsonLeftInput.value,
-      right: jsonRightInput.value, 
+      right: jsonRightInput.value,
       query: jsonQuery.value || null,
-      diffTool: diffTool.value 
+      diffTool: diffTool.value
     });
   } catch (e) {
-    jsonOutput.value = "Error: " + e;
+    jsonLeftOutput.value = "Error: " + e;
   }
 }
 
@@ -293,7 +299,8 @@ watch(jsonKeys, () => {
 });
 
 watch([jsonLeftInput, jsonRightInput, jsonQuery], debounce(() => {
-  queryJson();
+  queryLeftJson();
+  queryRightJson();
   emit('update:leftJson', jsonLeftInput.value);
   emit('update:rightJson', jsonRightInput.value);
   emit('update:query', jsonQuery.value);
@@ -309,6 +316,14 @@ watch([jsonLeftInput, jsonRightInput, jsonQuery], debounce(() => {
         @drop="isDraggingLeft = false">
         <textarea id="leftTextarea" ref="leftTextarea" v-model="jsonLeftInput" placeholder="Enter JSON (Left)..." rows="5"></textarea>
         <div class="textarea-actions">
+          <button v-if="jsonLeftInput" class="action-button" @click="queryLeftJson(true)" title="Run" :disabled="jsonLeftQuerying">
+            <svg v-if="!jsonLeftQuerying" viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <polygon points="5 3 19 12 5 21 5 3"></polygon>
+            </svg>
+            <svg v-else class="spinner" viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <path d="M21 12a9 9 0 1 1-6.219-8.56"></path>
+            </svg>
+          </button>
           <button class="action-button" @click="openLeftFile" title="Open File">
             <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
               <path d="M13 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V9z"></path>
@@ -329,6 +344,14 @@ watch([jsonLeftInput, jsonRightInput, jsonQuery], debounce(() => {
         @drop="isDraggingRight = false">
         <textarea id="rightTextarea" ref="rightTextarea" v-model="jsonRightInput" placeholder="Enter JSON (Right)..." rows="5"></textarea>
         <div class="textarea-actions">
+          <button v-if="jsonRightInput" class="action-button" @click="queryRightJson(true)" title="Run" :disabled="jsonRightQuerying">
+            <svg v-if="!jsonRightQuerying" viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <polygon points="5 3 19 12 5 21 5 3"></polygon>
+            </svg>
+            <svg v-else class="spinner" viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <path d="M21 12a9 9 0 1 1-6.219-8.56"></path>
+            </svg>
+          </button>
           <button class="action-button" @click="openRightFile" title="Open File">
             <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
               <path d="M13 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V9z"></path>
@@ -362,7 +385,7 @@ watch([jsonLeftInput, jsonRightInput, jsonQuery], debounce(() => {
       </div>
       <div v-if="showSuggestions && jsonKeys.length > 0" class="suggestions-dropdown">
         <div v-for="(key, index) in jsonKeys" :key="key.path"
-          class="suggestion-item" 
+          class="suggestion-item"
           :class="{ active: index === selectedIndex }"
           @mousedown.prevent="appendToQuery(key.path)">
           {{ key.path }} {{ !!key.val ? ` -> ${key.val}` : '' }}
@@ -370,9 +393,9 @@ watch([jsonLeftInput, jsonRightInput, jsonQuery], debounce(() => {
       </div>
     </div>
     <div class="json-outputs">
-      <div v-if="jsonOutput" class="output">
+      <div v-if="jsonLeftOutput" class="output">
         <div class="output-actions">
-          <button v-if="!jsonOutput.startsWith('Error: ')" class="action-button" @click="saveJsonToFile(jsonOutput)" title="Save to File">
+          <button v-if="!jsonLeftOutput.startsWith('Error: ')" class="action-button" @click="saveJsonToFile(jsonLeftOutput)" title="Save to File">
             <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
               <path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"></path>
               <polyline points="17 21 17 13 7 13 7 21"></polyline>
@@ -380,7 +403,7 @@ watch([jsonLeftInput, jsonRightInput, jsonQuery], debounce(() => {
             </svg>
           </button>
         </div>
-        <div v-if="jsonOutput.startsWith('Error: ')" class="error-msg">{{ jsonOutput }}</div>
+        <div v-if="jsonLeftOutput.startsWith('Error: ')" class="error-msg">{{ jsonLeftOutput }}</div>
         <vue-json-pretty
           v-else
           :data="parsedJsonOutput"
@@ -468,6 +491,21 @@ watch([jsonLeftInput, jsonRightInput, jsonQuery], debounce(() => {
 .action-button:hover {
   background: rgba(0, 0, 0, 0.15);
   color: #333;
+}
+
+.action-button:disabled {
+  cursor: not-allowed;
+  opacity: 0.6;
+}
+
+.spinner {
+  animation: rotate 2s linear infinite;
+}
+
+@keyframes rotate {
+  100% {
+    transform: rotate(360deg);
+  }
 }
 
 .json-outputs .output {
