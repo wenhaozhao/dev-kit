@@ -49,10 +49,30 @@ impl Json {
     pub fn query(&self, query: Option<&str>, query_type: Option<QueryType>, beauty: bool) -> crate::Result<String> {
         let json = Arc::<Value>::try_from(self)?;
         let query_vals = Self::query_actual(&json, query, query_type)?;
-        if beauty {
-            Ok(serde_json::to_string_pretty(&query_vals)?)
-        } else {
-            Ok(serde_json::to_string(&query_vals)?)
+        match &query_vals {
+            QueryVals::Origin(_) | QueryVals::KeyPattern(_) => {
+                if beauty {
+                    Ok(serde_json::to_string_pretty(&query_vals)?)
+                } else {
+                    Ok(serde_json::to_string(&query_vals)?)
+                }
+            }
+            QueryVals::JsonPath { query, vals } => {
+                if !query.contains("*") && vals.len() == 1 {
+                    let val = &vals[0];
+                    if beauty {
+                        Ok(serde_json::to_string_pretty(val)?)
+                    } else {
+                        Ok(serde_json::to_string(val)?)
+                    }
+                } else {
+                    if beauty {
+                        Ok(serde_json::to_string_pretty(&query_vals)?)
+                    } else {
+                        Ok(serde_json::to_string(&query_vals)?)
+                    }
+                }
+            }
         }
     }
 
@@ -101,7 +121,10 @@ install {} command-line interface, see:
 #[derive(Debug, Clone)]
 enum QueryVals {
     Origin(Value),
-    JsonPath(Vec<Value>),
+    JsonPath {
+        query: String,
+        vals: Vec<Value>,
+    },
     KeyPattern(BTreeMap<Jsonpath, Vec<Value>>),
 }
 
@@ -114,7 +137,7 @@ impl serde::Serialize for QueryVals {
             QueryVals::Origin(vals) => {
                 vals.serialize(serializer)
             }
-            QueryVals::JsonPath(vals) => {
+            QueryVals::JsonPath { vals, .. } => {
                 match serde_json::to_value(vals) {
                     Ok(v) => v.serialize(serializer),
                     Err(err) => Err(S::Error::custom(format!("{}", err)))
@@ -243,8 +266,8 @@ impl Json {
             }
             (None, Some(QueryType::JsonPath), query, false) => {
                 let query = query.trim_end_matches(".");
-                let arr = json.query(&query).into_iter().flatten().map(|it| it.to_owned()).collect_vec();
-                Ok(QueryVals::JsonPath(arr))
+                let vals = json.query(&query).into_iter().flatten().map(|it| it.to_owned()).collect_vec();
+                Ok(QueryVals::JsonPath { query: query.to_string(), vals })
             }
             _ => {
                 unreachable!()
