@@ -8,13 +8,11 @@ import VueJsonPretty from 'vue-json-pretty';
 import 'vue-json-pretty/lib/styles.css';
 
 const props = defineProps({
-  initialJson: String,
-  initialQuery: String
 });
 
 const emit = defineEmits(['update:json', 'update:query']);
 
-const jsonInput = ref(props.initialJson || "");
+const jsonInput = ref("");
 const jsonOutput = ref("");
 const jsonQuery = ref(props.initialQuery || "");
 const jsonQuerying = ref(false);
@@ -157,13 +155,9 @@ watch([jsonInput, jsonQuery], debounce(() => {
   queryJson();
   emit('update:json', jsonInput.value);
   emit('update:query', jsonQuery.value);
-}));
+}, 1000));
 
 onMounted(async () => {
-  if (jsonInput.value) {
-    queryJson();
-  }
-
   await listen("tauri://drag-drop", (event) => {
     isDragging.value = false;
     const paths = event.payload.paths;

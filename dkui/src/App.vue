@@ -82,9 +82,7 @@ function updateQuery(val) {
     </KeepAlive>
 
     <KeepAlive>
-      <JsonParser v-if="currentTab === 'json'" 
-        :initialJson="jsonInput"
-        :initialQuery="jsonQuery"
+      <JsonParser v-if="currentTab === 'json'"
         @update:json="updateJson"
         @update:query="updateQuery" />
     </KeepAlive>

@@ -85,15 +85,6 @@ onMounted(async () => {
   if (leftTextarea.value) observer.observe(leftTextarea.value);
   if (rightTextarea.value) observer.observe(rightTextarea.value);
 
-  if (jsonLeftInput.value) {
-    queryLeftJson();
-  }
-
-  if (jsonRightInput.value) {
-    queryRightJson();
-  }
-
-
   await listen("tauri://drag-drop", (event) => {
     const paths = event.payload.paths;
     if (paths && paths.length > 0) {
@@ -303,7 +294,19 @@ watch([jsonLeftInput, jsonRightInput, jsonQuery], debounce(() => {
   queryRightJson();
   emit('update:leftJson', jsonLeftInput.value);
   emit('update:query', jsonQuery.value);
-}));
+},1000));
+
+watch(() => props.initialLeftJson, debounce((newVal) => {
+  if (newVal !== jsonLeftInput.value) {
+    jsonLeftInput.value = newVal || "";
+  }
+},100));
+
+watch(() => props.initialQuery, debounce((newVal) => {
+  if (newVal !== jsonQuery.value) {
+    jsonQuery.value = newVal || "";
+  }
+},100));
 </script>
 
 <template>
