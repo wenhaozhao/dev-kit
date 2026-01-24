@@ -12,34 +12,61 @@ const props = defineProps({
 
 const emit = defineEmits(['update:json', 'update:query']);
 
-const jsonInput = ref("");
-const jsonOutput = ref("");
-const jsonQuery = ref(props.initialQuery || "");
-const jsonQuerying = ref(false);
-const jsonKeys = ref([]);
-const selectedIndex = ref(-1);
-const showSuggestions = ref(false);
+function init_tab() {
+  return {
+    jsonInput: "",
+    jsonOutput: "",
+    jsonQuery: "",
+    jsonQuerying: false,
+    jsonKeys: [],
+    showSuggestions: false,
+    selectedIndex: -1,
+  };
+}
+
+const tabs = ref([init_tab()]);
+const activeTabIndex = ref(0);
+const activeTab = computed(() => tabs.value[activeTabIndex.value]);
+
 const isDragging = ref(false);
 const queryContainer = ref(null);
 
 const { debounce } = useDebounce();
 
 const parsedJsonOutput = computed(() => {
-  if (!jsonOutput.value || jsonOutput.value.startsWith("Error: ")) {
+  if (!activeTab.value.jsonOutput || activeTab.value.jsonOutput.startsWith("Error: ")) {
     return null;
   }
   try {
-    return JSON.parse(jsonOutput.value);
+    return JSON.parse(activeTab.value.jsonOutput);
   } catch (e) {
-    return jsonOutput.value;
+    return activeTab.value.jsonOutput;
   }
 });
 
+function addTab() {
+  tabs.value.push(init_tab());
+  activeTabIndex.value = tabs.value.length - 1;
+}
+
+function removeTab(index) {
+  if (tabs.value.length <= 1) {
+    tabs.value[0] =init_tab();
+    return;
+  }
+  tabs.value.splice(index, 1);
+  if (activeTabIndex.value >= tabs.value.length) {
+    activeTabIndex.value = tabs.value.length - 1;
+  }
+}
+
+
+
 async function processFile(path) {
   try {
-    jsonInput.value = path;
+    activeTab.value.jsonInput = path;
   } catch (e) {
-    jsonOutput.value = "Error reading file: " + e;
+    activeTab.value.jsonOutput = "Error reading file: " + e;
   }
 }
 
@@ -54,34 +81,36 @@ async function openFile() {
 }
 
 async function queryJson(reload = false) {
-  if (!jsonInput.value) {
-    jsonOutput.value = "";
-    jsonKeys.value = [];
+  const currentTab = activeTab.value;
+  if (!currentTab.jsonInput) {
+    currentTab.jsonOutput = "";
+    currentTab.jsonKeys = [];
     return;
   }
-  jsonQuerying.value = true;
+  currentTab.jsonQuerying = true;
   try {
-    jsonOutput.value = await invoke("query_json", {json: jsonInput.value, query: jsonQuery.value, reload});
+    currentTab.jsonOutput = await invoke("query_json", {json: currentTab.jsonInput, query: currentTab.jsonQuery, reload});
   } catch (e) {
-    jsonOutput.value = "Error: " + e;
+    currentTab.jsonOutput = "Error: " + e;
   } finally {
-    jsonQuerying.value = false
+    currentTab.jsonQuerying = false
   }
   await updateKeys();
 }
 
 async function updateKeys() {
+  const currentTab = activeTab.value;
   try {
-    if (!jsonInput.value) {
-      jsonKeys.value = [];
+    if (!currentTab.jsonInput) {
+      currentTab.jsonKeys = [];
       return;
     }
     const paths = await invoke("search_json_paths", {
-      json: jsonInput.value,
-      query: jsonQuery.value || null
+      json: currentTab.jsonInput,
+      query: currentTab.jsonQuery || null
     });
     if (paths.length > 0) {
-      jsonKeys.value = paths
+      currentTab.jsonKeys = paths
     }
   } catch (e) {
     console.error("Failed to fetch keys:", e);
@@ -89,7 +118,8 @@ async function updateKeys() {
 }
 
 function appendToQuery(key) {
-  let val = jsonQuery.value || "";
+  const currentTab = activeTab.value;
+  let val = currentTab.jsonQuery || "";
   if (key.startsWith("$")) {
     val = key;
   }else{
@@ -103,33 +133,35 @@ function appendToQuery(key) {
       val = key;
     }
   }
-  jsonQuery.value = val;
-  showSuggestions.value = false;
-  selectedIndex.value = -1;
+  currentTab.jsonQuery = val;
+  currentTab.showSuggestions = false;
+  currentTab.selectedIndex = -1;
 }
 
 function handleKeyDown(e) {
-  if (!showSuggestions.value || jsonKeys.value.length === 0) return;
+  const currentTab = activeTab.value;
+  if (!currentTab.showSuggestions || currentTab.jsonKeys.length === 0) return;
 
   if (e.key === 'ArrowDown') {
     e.preventDefault();
-    selectedIndex.value = (selectedIndex.value + 1) % jsonKeys.value.length;
+    currentTab.selectedIndex = (currentTab.selectedIndex + 1) % currentTab.jsonKeys.length;
   } else if (e.key === 'ArrowUp') {
     e.preventDefault();
-    selectedIndex.value = (selectedIndex.value - 1 + jsonKeys.value.length) % jsonKeys.value.length;
+    currentTab.selectedIndex = (currentTab.selectedIndex - 1 + currentTab.jsonKeys.length) % currentTab.jsonKeys.length;
   } else if (e.key === 'Enter') {
-    if (selectedIndex.value >= 0) {
+    if (currentTab.selectedIndex >= 0) {
       e.preventDefault();
-      appendToQuery(jsonKeys.value[selectedIndex.value].path);
+      appendToQuery(currentTab.jsonKeys[currentTab.selectedIndex].path);
     }
   } else if (e.key === 'Escape') {
-    showSuggestions.value = false;
-    selectedIndex.value = -1;
+    currentTab.showSuggestions = false;
+    currentTab.selectedIndex = -1;
   }
 }
 
 async function saveJsonToFile() {
-  if (!jsonOutput.value || jsonOutput.value.startsWith("Error: ")) {
+  const currentTab = activeTab.value;
+  if (!currentTab.jsonOutput || currentTab.jsonOutput.startsWith("Error: ")) {
     return;
   }
   try {
@@ -140,22 +172,22 @@ async function saveJsonToFile() {
       }]
     });
     if (path) {
-      await invoke("save_to_file", { path, content: jsonOutput.value });
+      await invoke("save_to_file", { path, content: currentTab.jsonOutput });
     }
   } catch (e) {
-    jsonOutput.value = "Error: " + e;
+    currentTab.jsonOutput = "Error: " + e;
   }
 }
 
-watch(jsonKeys, () => {
-  selectedIndex.value = -1;
+watch(() => activeTab.value.jsonKeys, () => {
+  activeTab.value.selectedIndex = -1;
 });
 
-watch([jsonInput, jsonQuery], debounce(() => {
+watch([() => activeTab.value.jsonInput, () => activeTab.value.jsonQuery, () => activeTabIndex.value], debounce(() => {
   queryJson();
-  emit('update:json', jsonInput.value);
-  emit('update:query', jsonQuery.value);
-}, 1000));
+  emit('update:json', activeTab.value.jsonInput);
+  emit('update:query', activeTab.value.jsonQuery);
+}, 500));
 
 onMounted(async () => {
   await listen("tauri://drag-drop", (event) => {
@@ -176,7 +208,7 @@ onMounted(async () => {
 
   const handleClickOutside = (e) => {
     if (queryContainer.value && !queryContainer.value.contains(e.target)) {
-      showSuggestions.value = false;
+      activeTab.value.showSuggestions = false;
     }
   };
 
@@ -190,12 +222,32 @@ onMounted(async () => {
 
 <template>
   <section class="tool-section">
+    <div class="tabs-header">
+      <div v-for="(tab, index) in tabs" :key="index" 
+        class="tab-item" 
+        :class="{ active: index === activeTabIndex }"
+        @click="activeTabIndex = index">
+        <span class="tab-title">JSON {{ index + 1 }}</span>
+        <button class="tab-close" @click.stop="removeTab(index)" v-if="tabs.length > 1">
+          <svg viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <line x1="18" y1="6" x2="6" y2="18"></line>
+            <line x1="6" y1="6" x2="18" y2="18"></line>
+          </svg>
+        </button>
+      </div>
+      <button class="add-tab-button" @click="addTab" title="Add Tab">
+        <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <line x1="12" y1="5" x2="12" y2="19"></line>
+          <line x1="5" y1="12" x2="19" y2="12"></line>
+        </svg>
+      </button>
+    </div>
     <div class="json-inputs">
       <div class="textarea-container" :class="{ dragging: isDragging }">
-        <textarea v-model="jsonInput" placeholder="Enter JSON..." rows="5"></textarea>
+        <textarea v-model="activeTab.jsonInput" placeholder="Enter JSON..." rows="5"></textarea>
         <div class="textarea-actions">
-          <button v-if="jsonInput" class="action-button" @click="queryJson(true)" title="Run" :disabled="jsonQuerying">
-            <svg v-if="!jsonQuerying" viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <button v-if="activeTab.jsonInput" class="action-button" @click="queryJson(true)" title="Run" :disabled="activeTab.jsonQuerying">
+            <svg v-if="!activeTab.jsonQuerying" viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
               <polygon points="5 3 19 12 5 21 5 3"></polygon>
             </svg>
             <svg v-else class="spinner" viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
@@ -208,7 +260,7 @@ onMounted(async () => {
               <polyline points="13 2 13 9 20 9"></polyline>
             </svg>
           </button>
-          <button v-if="jsonInput" class="action-button" @click="jsonInput = ''" title="Clear">
+          <button v-if="activeTab.jsonInput" class="action-button" @click="activeTab.jsonInput = ''" title="Clear">
             <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
               <line x1="18" y1="6" x2="6" y2="18"></line>
               <line x1="6" y1="6" x2="18" y2="18"></line>
@@ -218,24 +270,24 @@ onMounted(async () => {
       </div>
     </div>
     <div class="row query-row" ref="queryContainer">
-      <input v-model="jsonQuery" placeholder="json path/key/val filter"
-        @input="showSuggestions = true"
-        @focus="showSuggestions = true"
-        @blur="setTimeout(() => showSuggestions = false, 200)"
+      <input v-model="activeTab.jsonQuery" placeholder="json path/key/val filter"
+        @input="activeTab.showSuggestions = true"
+        @focus="activeTab.showSuggestions = true"
+        @blur="setTimeout(() => activeTab.showSuggestions = false, 200)"
         @keydown="handleKeyDown" />
-      <div v-if="showSuggestions && jsonKeys.length > 0" class="suggestions-dropdown">
-        <div v-for="(key, index) in jsonKeys" :key="key.path"
+      <div v-if="activeTab.showSuggestions && activeTab.jsonKeys.length > 0" class="suggestions-dropdown">
+        <div v-for="(key, index) in activeTab.jsonKeys" :key="key.path"
           class="suggestion-item" 
-          :class="{ active: index === selectedIndex }"
+          :class="{ active: index === activeTab.selectedIndex }"
           @mousedown.prevent="appendToQuery(key.path)">
           {{ key.path }} {{ !!key.val ? ` -> ${key.val}` : '' }}
         </div>
       </div>
     </div>
     <div class="json-outputs">
-      <div v-if="jsonOutput" class="output">
+      <div v-if="activeTab.jsonOutput" class="output">
         <div class="output-actions">
-          <button v-if="!jsonOutput.startsWith('Error: ')" class="action-button" @click="saveJsonToFile" title="Save to File">
+          <button v-if="!activeTab.jsonOutput.startsWith('Error: ')" class="action-button" @click="saveJsonToFile" title="Save to File">
             <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
               <path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"></path>
               <polyline points="17 21 17 13 7 13 7 21"></polyline>
@@ -243,7 +295,7 @@ onMounted(async () => {
             </svg>
           </button>
         </div>
-        <div v-if="jsonOutput.startsWith('Error: ')" class="error-msg">{{ jsonOutput }}</div>
+        <div v-if="activeTab.jsonOutput.startsWith('Error: ')" class="error-msg">{{ activeTab.jsonOutput }}</div>
         <vue-json-pretty
           v-else
           :data="parsedJsonOutput"
@@ -262,6 +314,79 @@ onMounted(async () => {
   border: 1px solid #ccc;
   border-radius: 8px;
   text-align: left;
+}
+
+.tabs-header {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  margin-bottom: 16px;
+  border-bottom: 1px solid #eee;
+  padding-bottom: 8px;
+}
+
+.tab-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 12px;
+  background: #f5f5f5;
+  border-radius: 4px 4px 0 0;
+  cursor: pointer;
+  font-size: 13px;
+  color: #666;
+  border: 1px solid transparent;
+  border-bottom: none;
+  transition: all 0.2s;
+}
+
+.tab-item:hover {
+  background: #eee;
+}
+
+.tab-item.active {
+  background: white;
+  color: #396cd8;
+  border-color: #eee;
+  margin-bottom: -9px;
+  padding-bottom: 14px;
+  font-weight: 500;
+}
+
+.tab-close {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 2px;
+  border: none;
+  background: transparent;
+  color: #999;
+  border-radius: 50%;
+  cursor: pointer;
+}
+
+.tab-close:hover {
+  background: rgba(0, 0, 0, 0.1);
+  color: #666;
+}
+
+.add-tab-button {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 4px;
+  background: transparent;
+  color: #999;
+  border: 1px dashed #ccc;
+  border-radius: 4px;
+  cursor: pointer;
+  margin-left: 4px;
+}
+
+.add-tab-button:hover {
+  color: #396cd8;
+  border-color: #396cd8;
+  background: rgba(57, 108, 216, 0.05);
 }
 
 .row {
@@ -465,6 +590,28 @@ button:hover {
   }
   .textarea-container.dragging textarea {
     background-color: rgba(0, 122, 255, 0.1);
+  }
+  .tabs-header {
+    border-bottom-color: #444;
+  }
+  .tab-item {
+    background: #252525;
+    color: #aaa;
+  }
+  .tab-item:hover {
+    background: #333;
+  }
+  .tab-item.active {
+    background: #2a2a2a;
+    color: #396cd8;
+    border-color: #444;
+  }
+  .tab-close:hover {
+    background: rgba(255, 255, 255, 0.1);
+    color: #ccc;
+  }
+  .add-tab-button {
+    border-color: #444;
   }
 }
 </style>
