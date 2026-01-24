@@ -1,5 +1,4 @@
 use std::path::PathBuf;
-use anyhow::anyhow;
 
 pub type Result<T> = anyhow::Result<T>;
 

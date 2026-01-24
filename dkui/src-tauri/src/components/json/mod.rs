@@ -39,14 +39,14 @@ impl JsonCache {
 }
 
 #[tauri::command]
-pub fn query_json(
+pub async fn query_json(
     state: tauri::State<'_, SharedAppState>,
     json: String,
     query: Option<String>,
     query_type: Option<String>,
     reload: bool,
 ) -> Result<String, String> {
-    let mut app_state = state.write().map_err(|_| "Failed to acquire app state lock")?;
+    let mut app_state = state.write().await;
     let cache = &mut app_state.json_cache;
     let value = cache.get_or_parse("tab_0", &json, reload)?;
     let arr = value.query(
@@ -58,13 +58,13 @@ pub fn query_json(
 }
 
 #[tauri::command]
-pub fn search_json_paths(
+pub async fn search_json_paths(
     state: tauri::State<'_, SharedAppState>,
     json: String,
     query: Option<String>,
     query_type: Option<String>,
 ) -> Result<Vec<JsonpathMatch>, String> {
-    let mut app_state = state.write().map_err(|_| "Failed to acquire app state lock")?;
+    let mut app_state = state.write().await;
     let cache = &mut app_state.json_cache;
     let value = cache.get_or_parse("tab_0", &json, false)?;
     let query_type = query_type.and_then(|s| QueryType::from_str(&s).ok());
@@ -79,7 +79,7 @@ pub fn search_json_paths(
 }
 
 #[tauri::command]
-pub fn diff_json(
+pub async fn diff_json(
     state: tauri::State<'_, SharedAppState>,
     left: String,
     right: String,
@@ -87,7 +87,7 @@ pub fn diff_json(
     query_type: Option<String>,
     diff_tool: Option<String>,
 ) -> Result<(), String> {
-    let mut app_state = state.write().map_err(|_| "Failed to acquire app state lock")?;
+    let mut app_state = state.write().await;
     let cache = &mut app_state.json_cache;
     let left_val = cache.get_or_parse("tab_0", &left, false)?;
     let right_val = cache.get_or_parse("tab_0", &right, false)?;

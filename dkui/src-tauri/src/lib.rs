@@ -1,7 +1,8 @@
 use derive_more::Deref;
 use dev_kit as devkit;
 use std::fs;
-use std::sync::{Arc, RwLock};
+use std::sync::{Arc};
+use tauri::async_runtime::RwLock;
 
 mod components;
 use components::*;
