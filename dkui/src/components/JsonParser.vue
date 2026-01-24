@@ -1,5 +1,5 @@
 <script setup>
-import { ref, onMounted, onUnmounted, watch, computed } from "vue";
+import { ref, onMounted, onUnmounted, watch, computed, nextTick } from "vue";
 import { invoke } from "@tauri-apps/api/core";
 import { listen } from "@tauri-apps/api/event";
 import { save, open } from "@tauri-apps/plugin-dialog";
@@ -30,6 +30,7 @@ const activeTab = computed(() => tabs.value[activeTabIndex.value]);
 
 const isDragging = ref(false);
 const queryContainer = ref(null);
+const tabsScrollContainer = ref(null);
 
 const { debounce } = useDebounce();
 
@@ -44,9 +45,52 @@ const parsedJsonOutput = computed(() => {
   }
 });
 
+function scrollTabs(direction) {
+  if (!tabsScrollContainer.value) return;
+  const scrollAmount = 200;
+  tabsScrollContainer.value.scrollBy({
+    left: direction === 'left' ? -scrollAmount : scrollAmount,
+    behavior: 'smooth'
+  });
+}
+
+const showScrollButtons = ref(false);
+
+function checkScroll() {
+  if (!tabsScrollContainer.value) return;
+  const { scrollWidth, clientWidth } = tabsScrollContainer.value;
+  showScrollButtons.value = scrollWidth > clientWidth;
+}
+
+onMounted(() => {
+  checkScroll();
+  window.addEventListener('resize', checkScroll);
+});
+
+onUnmounted(() => {
+  window.removeEventListener('resize', checkScroll);
+});
+
+watch(tabs, () => {
+  nextTick(() => {
+    checkScroll();
+  });
+}, { deep: true });
+
+function ensureActiveTabVisible() {
+  setTimeout(() => {
+    if (!tabsScrollContainer.value) return;
+    const activeTabEl = tabsScrollContainer.value.querySelector('.tab-item.active');
+    if (activeTabEl) {
+      activeTabEl.scrollIntoView({ behavior: 'smooth', block: 'nearest', inline: 'nearest' });
+    }
+  }, 50);
+}
+
 function addTab() {
   tabs.value.push(init_tab());
   activeTabIndex.value = tabs.value.length - 1;
+  ensureActiveTabVisible();
 }
 
 function removeTab(index) {
@@ -58,7 +102,12 @@ function removeTab(index) {
   if (activeTabIndex.value >= tabs.value.length) {
     activeTabIndex.value = tabs.value.length - 1;
   }
+  ensureActiveTabVisible();
 }
+
+watch(activeTabIndex, () => {
+  ensureActiveTabVisible();
+});
 
 
 
@@ -223,18 +272,30 @@ onMounted(async () => {
 <template>
   <section class="tool-section">
     <div class="tabs-header">
-      <div v-for="(tab, index) in tabs" :key="index" 
-        class="tab-item" 
-        :class="{ active: index === activeTabIndex }"
-        @click="activeTabIndex = index">
-        <span class="tab-title">JSON {{ index + 1 }}</span>
-        <button class="tab-close" @click.stop="removeTab(index)" v-if="tabs.length > 1">
-          <svg viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-            <line x1="18" y1="6" x2="6" y2="18"></line>
-            <line x1="6" y1="6" x2="18" y2="18"></line>
-          </svg>
-        </button>
+      <button v-if="showScrollButtons" class="scroll-button" @click="scrollTabs('left')" title="Scroll Left">
+        <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <polyline points="15 18 9 12 15 6"></polyline>
+        </svg>
+      </button>
+      <div class="tabs-container" ref="tabsScrollContainer">
+        <div v-for="(tab, index) in tabs" :key="index" 
+          class="tab-item" 
+          :class="{ active: index === activeTabIndex }"
+          @click="activeTabIndex = index">
+          <span class="tab-title">JSON {{ index + 1 }}</span>
+          <button class="tab-close" @click.stop="removeTab(index)" v-if="tabs.length > 1">
+            <svg viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <line x1="18" y1="6" x2="6" y2="18"></line>
+              <line x1="6" y1="6" x2="18" y2="18"></line>
+            </svg>
+          </button>
+        </div>
       </div>
+      <button v-if="showScrollButtons" class="scroll-button" @click="scrollTabs('right')" title="Scroll Right">
+        <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <polyline points="9 18 15 12 9 6"></polyline>
+        </svg>
+      </button>
       <button class="add-tab-button" @click="addTab" title="Add Tab">
         <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
           <line x1="12" y1="5" x2="12" y2="19"></line>
@@ -322,7 +383,38 @@ onMounted(async () => {
   gap: 4px;
   margin-bottom: 16px;
   border-bottom: 1px solid #eee;
-  padding-bottom: 8px;
+  padding-bottom: 0px;
+}
+
+.tabs-container {
+  display: flex;
+  align-items: flex-end;
+  gap: 4px;
+  overflow-x: auto;
+  scrollbar-width: none; /* Firefox */
+  -ms-overflow-style: none;  /* IE and Edge */
+  flex: 1;
+  scroll-behavior: smooth;
+}
+
+.tabs-container::-webkit-scrollbar {
+  display: none; /* Chrome, Safari and Opera */
+}
+
+.scroll-button {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 4px;
+  background: transparent;
+  color: #999;
+  border: none;
+  cursor: pointer;
+  transition: color 0.2s;
+}
+
+.scroll-button:hover {
+  color: #396cd8;
 }
 
 .tab-item {
@@ -338,6 +430,8 @@ onMounted(async () => {
   border: 1px solid transparent;
   border-bottom: none;
   transition: all 0.2s;
+  white-space: nowrap;
+  flex-shrink: 0;
 }
 
 .tab-item:hover {
@@ -348,9 +442,21 @@ onMounted(async () => {
   background: white;
   color: #396cd8;
   border-color: #eee;
-  margin-bottom: -9px;
-  padding-bottom: 14px;
+  padding-bottom: 8px;
   font-weight: 500;
+  position: relative;
+  z-index: 1;
+}
+
+/* Add a line to cover the bottom border for the active tab */
+.tab-item.active::after {
+  content: '';
+  position: absolute;
+  bottom: -1px;
+  left: 0;
+  right: 0;
+  height: 1px;
+  background: white;
 }
 
 .tab-close {
