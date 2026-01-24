@@ -1,9 +1,13 @@
+use crate::SharedAppState;
 use dev_kit::command::json::{DiffTool, Json, JsonpathMatch, QueryType};
 use itertools::Itertools;
 use sha2::Digest;
 use std::collections::HashMap;
 use std::str::FromStr;
-use std::sync::{Arc, Mutex};
+use std::sync::Arc;
+
+mod jsonparser;
+
 
 #[derive(Default)]
 pub struct JsonCache {
@@ -36,13 +40,15 @@ impl JsonCache {
 
 #[tauri::command]
 pub fn query_json(
-    cache: tauri::State<'_, Mutex<JsonCache>>,
+    state: tauri::State<'_, SharedAppState>,
     json: String,
     query: Option<String>,
     query_type: Option<String>,
     reload: bool,
 ) -> Result<String, String> {
-    let value = cache.lock().unwrap().get_or_parse("tab_0", &json, reload)?;
+    let mut app_state = state.write().map_err(|_| "Failed to acquire app state lock")?;
+    let cache = &mut app_state.json_cache;
+    let value = cache.get_or_parse("tab_0", &json, reload)?;
     let arr = value.query(
         query.as_deref(), query_type.and_then(|s|
             QueryType::from_str(&s).ok()
@@ -53,12 +59,14 @@ pub fn query_json(
 
 #[tauri::command]
 pub fn search_json_paths(
-    cache: tauri::State<'_, Mutex<JsonCache>>,
+    state: tauri::State<'_, SharedAppState>,
     json: String,
     query: Option<String>,
     query_type: Option<String>,
 ) -> Result<Vec<JsonpathMatch>, String> {
-    let value = cache.lock().unwrap().get_or_parse("tab_0", &json, false)?;
+    let mut app_state = state.write().map_err(|_| "Failed to acquire app state lock")?;
+    let cache = &mut app_state.json_cache;
+    let value = cache.get_or_parse("tab_0", &json, false)?;
     let query_type = query_type.and_then(|s| QueryType::from_str(&s).ok());
     match value.search_paths(query.as_deref(), query_type) {
         Ok(arr) => {
@@ -72,15 +80,17 @@ pub fn search_json_paths(
 
 #[tauri::command]
 pub fn diff_json(
-    cache: tauri::State<'_, Mutex<JsonCache>>,
+    state: tauri::State<'_, SharedAppState>,
     left: String,
     right: String,
     query: Option<String>,
     query_type: Option<String>,
     diff_tool: Option<String>,
 ) -> Result<(), String> {
-    let left_val = cache.lock().unwrap().get_or_parse("tab_0", &left, false)?;
-    let right_val = cache.lock().unwrap().get_or_parse("tab_0", &right, false)?;
+    let mut app_state = state.write().map_err(|_| "Failed to acquire app state lock")?;
+    let cache = &mut app_state.json_cache;
+    let left_val = cache.get_or_parse("tab_0", &left, false)?;
+    let right_val = cache.get_or_parse("tab_0", &right, false)?;
     let query_type = query_type.and_then(|s|
         QueryType::from_str(&s).ok()
     );
