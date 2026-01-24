@@ -616,51 +616,49 @@ button:hover {
   background-color: #f0f0f0;
 }
 
-@media (prefers-color-scheme: dark) {
-  .output {
-    background-color: #1e1e1e;
-    color: #d4d4d4;
-  }
-  :deep(.vjs-tree-node:hover) {
-    background-color: #3e3e3e;
-  }
-  :deep(.vjs-value__string) {
-    color: #ce9178;
-  }
-  :deep(.vjs-value__number) {
-    color: #b5cea8;
-  }
-  :deep(.vjs-key) {
-    color: #9cdcfe;
-  }
-  .tool-section {
-    border-color: #444;
-  }
-  input, textarea, select {
-    background-color: #2a2a2a;
-    border-color: #444;
-    color: #d4d4d4;
-  }
-  .suggestions-dropdown {
-    background-color: #2a2a2a;
-    border-color: #444;
-  }
-  .suggestion-item {
-    color: #d4d4d4;
-  }
-  .suggestion-item:hover, .suggestion-item.active {
-    background-color: #3e3e3e;
-  }
-  .action-button {
-    background: rgba(255, 255, 255, 0.05);
-    color: #aaa;
-  }
-  .action-button:hover {
-    background: rgba(255, 255, 255, 0.15);
-    color: #fff;
-  }
-  .textarea-container.dragging textarea {
-    background-color: rgba(0, 122, 255, 0.1);
-  }
+:root.dark-mode .output {
+  background-color: #1e1e1e;
+  color: #d4d4d4;
+}
+:root.dark-mode :deep(.vjs-tree-node:hover) {
+  background-color: #3e3e3e;
+}
+:root.dark-mode :deep(.vjs-value__string) {
+  color: #ce9178;
+}
+:root.dark-mode :deep(.vjs-value__number) {
+  color: #b5cea8;
+}
+:root.dark-mode :deep(.vjs-key) {
+  color: #9cdcfe;
+}
+:root.dark-mode .tool-section {
+  border-color: #444;
+}
+:root.dark-mode input, :root.dark-mode textarea, :root.dark-mode select {
+  background-color: #2a2a2a;
+  border-color: #444;
+  color: #d4d4d4;
+}
+:root.dark-mode .suggestions-dropdown {
+  background-color: #2a2a2a;
+  border-color: #444;
+}
+:root.dark-mode .suggestion-item {
+  color: #d4d4d4;
+}
+:root.dark-mode .suggestion-item:hover, :root.dark-mode .suggestion-item.active {
+  background-color: #3e3e3e;
+}
+:root.dark-mode .action-button {
+  background: rgba(255, 255, 255, 0.05);
+  color: #aaa;
+}
+:root.dark-mode .action-button:hover {
+  background: rgba(255, 255, 255, 0.15);
+  color: #fff;
+}
+:root.dark-mode .textarea-container.dragging textarea {
+  background-color: rgba(0, 122, 255, 0.1);
 }
 </style>

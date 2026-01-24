@@ -306,34 +306,32 @@ button:hover {
   color: #999;
 }
 
-@media (prefers-color-scheme: dark) {
-  .tool-section {
-    border-color: #444;
-  }
-  .qr-input, select, input[type="number"] {
-    background-color: #2a2a2a;
-    border-color: #444;
-    color: #d4d4d4;
-  }
-  .output-preview {
-    background-color: #252525;
-    border-color: #444;
-  }
-  .svg-container,
-  .png-container {
-    background: #fff; /* Keep QR code white for readability */
-  }
-  .qr-info {
-    background: #333;
-    color: #bbb;
-  }
-  .clear-button {
-    background: rgba(255, 255, 255, 0.1);
-    color: #aaa;
-  }
-  .clear-button:hover {
-    background: rgba(255, 255, 255, 0.2);
-    color: #fff;
-  }
+:root.dark-mode .tool-section {
+  border-color: #444;
+}
+:root.dark-mode .qr-input, :root.dark-mode select, :root.dark-mode input[type="number"] {
+  background-color: #2a2a2a;
+  border-color: #444;
+  color: #d4d4d4;
+}
+:root.dark-mode .output-preview {
+  background-color: #252525;
+  border-color: #444;
+}
+:root.dark-mode .svg-container,
+:root.dark-mode .png-container {
+  background: #fff; /* Keep QR code white for readability */
+}
+:root.dark-mode .qr-info {
+  background: #333;
+  color: #bbb;
+}
+:root.dark-mode .clear-button {
+  background: rgba(255, 255, 255, 0.1);
+  color: #aaa;
+}
+:root.dark-mode .clear-button:hover {
+  background: rgba(255, 255, 255, 0.2);
+  color: #fff;
 }
 </style>

@@ -1,8 +1,9 @@
 <script setup>
-import {onMounted, ref} from "vue";
+import { onMounted, ref } from "vue";
 import { openUrl } from "@tauri-apps/plugin-opener";
 import { invoke } from "@tauri-apps/api/core";
 import { message } from "@tauri-apps/plugin-dialog";
+import { useTheme } from "./composables/useTheme";
 import JsonParser from "./components/JsonParser.vue";
 import JsonDiff from "./components/JsonDiff.vue";
 import UriParser from "./components/UriParser.vue";
@@ -10,6 +11,8 @@ import UriDecoder from "./components/UriDecoder.vue";
 import TimeParser from "./components/TimeParser.vue";
 import QrCodeGenerator from "./components/QrCodeGenerator.vue";
 import Base64Parser from "./components/Base64Parser.vue";
+
+const { theme, toggleTheme } = useTheme();
 
 const jsonInput = ref("");
 const jsonQuery = ref("");
@@ -61,6 +64,14 @@ function updateQuery(val) {
       <button :class="{ active: currentTab === 'time' }" @click="currentTab = 'time'">Time Parser</button>
       <button :class="{ active: currentTab === 'qrcode' }" @click="currentTab = 'qrcode'">QR Code</button>
       <button :class="{ active: currentTab === 'base64' }" @click="currentTab = 'base64'">Base64</button>
+      <a href="#" class="github-link theme-toggle" @click.prevent="toggleTheme" :title="theme === 'dark' ? 'Switch to Light Mode' : 'Switch to Dark Mode'">
+        <svg v-if="theme === 'dark'" height="24" viewBox="0 0 24 24" width="24" fill="currentColor">
+          <path d="M12,7c-2.76,0-5,2.24-5,5s2.24,5,5,5s5-2.24,5-5S14.76,7,12,7L12,7z M2,13l2,0c0.55,0,1-0.45,1-1s-0.45-1-1-1l-2,0 c-0.55,0-1,0.45-1,1S1.45,13,2,13L2,13z M20,13l2,0c0.55,0,1-0.45,1-1s-0.45-1-1-1l-2,0c-0.55,0-1,0.45-1,1S19.45,13,20,13L20,13z M11,2v2c0,0.55,0.45,1,1,1s1-0.45,1-1V2c0-0.55-0.45-1-1-1S11,1.45,11,2L11,2z M11,20v2c0,0.55,0.45,1,1,1s1-0.45,1-1v-2 c0-0.55-0.45-1-1-1S11,19.45,11,20L11,20z M5.99,4.58c-0.39-0.39-1.03-0.39-1.41,0c-0.39,0.39-0.39,1.03,0,1.41l1.06,1.06 c0.39,0.39,1.03,0.39,1.41,0s0.39-1.03,0-1.41L5.99,4.58z M18.36,16.95c-0.39-0.39-1.03-0.39-1.41,0c-0.39,0.39-0.39,1.03,0,1.41 l1.06,1.06c0.39,0.39,1.03,0.39,1.41,0c0.39-0.39,0.39-1.03,0-1.41L18.36,16.95z M19.42,5.99c0.39-0.39,0.39-1.03,0-1.41 c-0.39-0.39-1.03-0.39-1.41,0l-1.06,1.06c-0.39,0.39-0.39,1.03,0,1.41s1.03,0.39,1.41,0L19.42,5.99z M7.05,18.36 c0.39-0.39,0.39-1.03,0-1.41c-0.39-0.39-1.03-0.39-1.41,0l-1.06,1.06c-0.39,0.39-0.39,1.03,0,1.41s1.03,0.39,1.41,0L7.05,18.36z" />
+        </svg>
+        <svg v-else height="24" viewBox="0 0 24 24" width="24" fill="currentColor">
+          <path d="M12,3c-4.97,0-9,4.03-9,9s4.03,9,9,9s9-4.03,9-9c0-0.46-0.04-0.92-0.1-1.36c-0.98,1.37-2.58,2.26-4.4,2.26 c-2.98,0-5.4-2.42-5.4-5.4c0-1.81,0.89-3.42,2.26-4.4C12.92,3.04,12.46,3,12,3L12,3z" />
+        </svg>
+      </a>
       <a href="#" class="github-link" @click.prevent="addToPath" title="Add devkit(dk) to Path" v-if="is_show_add_to_path_bth">
         <svg height="24" viewBox="0 0 24 24" width="24" fill="currentColor">
           <path d="M20,19V7H4V19H20M20,3A2,2 0 0,1 22,5V19A2,2 0 0,1 20,21H4A2,2 0 0,1 2,19V5C2,3.89 2.9,3 4,3H20M13,17V15H18V17H13M9.58,13L5.57,9H8.4L11.7,12.3C12.09,12.69 12.09,13.33 11.7,13.72L8.42,17H5.59L9.58,13Z" />
@@ -149,6 +160,14 @@ function updateQuery(val) {
   margin-left: auto;
 }
 
+.theme-toggle {
+  margin-left: auto;
+}
+
+.theme-toggle + .github-link {
+  margin-left: 0;
+}
+
 .github-link:hover {
   color: #000;
 }
@@ -169,21 +188,36 @@ function updateQuery(val) {
 }
 
 @media (prefers-color-scheme: dark) {
-  .tabs {
-    border-color: #444;
-    background-color: #1a1a1a;
+  :root:not(.dark-mode) .tabs {
+    border-color: #ccc;
+    background-color: #fff;
   }
-  .tabs button {
-    color: #aaa;
-  }
-  .tabs button.active {
-    color: white;
-  }
-  .github-link {
-    color: #ccc;
-  }
-  .github-link:hover {
-    color: #fff;
-  }
+}
+
+:root.dark-mode,
+:root.dark-mode body {
+  background-color: #1a1a1a;
+  color: #d4d4d4;
+}
+
+:root.dark-mode .tabs {
+  border-color: #444;
+  background-color: #1a1a1a;
+}
+
+:root.dark-mode .tabs button {
+  color: #aaa;
+}
+
+:root.dark-mode .tabs button.active {
+  color: white;
+}
+
+:root.dark-mode .github-link {
+  color: #ccc;
+}
+
+:root.dark-mode .github-link:hover {
+  color: #fff;
 }
 </style>

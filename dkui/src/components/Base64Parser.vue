@@ -331,51 +331,49 @@ button:hover:not(.active) {
   background-color: #e8e8e8;
 }
 
-@media (prefers-color-scheme: dark) {
-  .output {
-    background-color: #1e1e1e;
-    color: #d4d4d4;
-  }
-  .output:hover {
-    background-color: #2a2a2a;
-  }
-  .tool-section {
-    border-color: #444;
-  }
-  textarea, .button-group {
-    border-color: #444;
-  }
-  textarea {
-    background-color: #2a2a2a;
-    color: #d4d4d4;
-  }
-  button {
-    background-color: #2a2a2a;
-    color: #d4d4d4;
-  }
-  button:not(:last-child) {
-    border-right-color: #444;
-  }
-  button.active {
-    background-color: #007aff;
-    color: white;
-  }
-  button:hover:not(.active) {
-    background-color: #3a3a3a;
-  }
-  .checkbox-group {
-    color: #aaa;
-  }
-  .action-button {
-    background: rgba(255, 255, 255, 0.05);
-    color: #aaa;
-  }
-  .action-button:hover {
-    background: rgba(255, 255, 255, 0.15);
-    color: #fff;
-  }
-  .textarea-container.dragging textarea {
-    background-color: rgba(0, 122, 255, 0.1);
-  }
+:root.dark-mode .output {
+  background-color: #1e1e1e;
+  color: #d4d4d4;
+}
+:root.dark-mode .output:hover {
+  background-color: #2a2a2a;
+}
+:root.dark-mode .tool-section {
+  border-color: #444;
+}
+:root.dark-mode textarea, :root.dark-mode .button-group {
+  border-color: #444;
+}
+:root.dark-mode textarea {
+  background-color: #2a2a2a;
+  color: #d4d4d4;
+}
+:root.dark-mode button {
+  background-color: #2a2a2a;
+  color: #d4d4d4;
+}
+:root.dark-mode button:not(:last-child) {
+  border-right-color: #444;
+}
+:root.dark-mode button.active {
+  background-color: #007aff;
+  color: white;
+}
+:root.dark-mode button:hover:not(.active) {
+  background-color: #3a3a3a;
+}
+:root.dark-mode .checkbox-group {
+  color: #aaa;
+}
+:root.dark-mode .action-button {
+  background: rgba(255, 255, 255, 0.05);
+  color: #aaa;
+}
+:root.dark-mode .action-button:hover {
+  background: rgba(255, 255, 255, 0.15);
+  color: #fff;
+}
+:root.dark-mode .textarea-container.dragging textarea {
+  background-color: rgba(0, 122, 255, 0.1);
 }
 </style>

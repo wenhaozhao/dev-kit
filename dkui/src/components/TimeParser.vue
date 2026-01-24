@@ -463,64 +463,62 @@ input.is-updating, textarea.is-updating {
   cursor: not-allowed;
 }
 
-@media (prefers-color-scheme: dark) {
-  .output {
-    background-color: #1e1e1e;
-    color: #d4d4d4;
-  }
-  .output:hover {
-    background-color: #2a2a2a;
-  }
-  .tool-section {
-    border-color: #444;
-  }
-  .refresh-button {
-    background-color: #2a2a2a;
-    border-color: #444;
-    color: #007aff;
-  }
-  .refresh-button.active {
-    background-color: #007aff;
-    color: white;
-    border-color: #007aff;
-  }
-  .refresh-button:hover:not(.active) {
-    background-color: #3e3e3e;
-  }
-  .refresh-button:hover.active {
-    background-color: #005bb7;
-  }
-  .clear-button {
-    background: rgba(255, 255, 255, 0.1);
-    color: #aaa;
-  }
-  .clear-button:hover {
-    background: rgba(255, 255, 255, 0.2);
-    color: #fff;
-  }
-  input, textarea, select, .button-group {
-    background-color: #2a2a2a;
-    border-color: #444;
-    color: #d4d4d4;
-  }
-  input.is-updating, textarea.is-updating {
-    background-color: #1a1a1a;
-    border-color: #333;
-    color: #888;
-  }
-  .button-group button {
-    background-color: #2a2a2a;
-    color: #d4d4d4;
-  }
-  .button-group button:not(:last-child) {
-    border-right-color: #444;
-  }
-  .button-group button.active {
-    background-color: #007aff;
-    color: white;
-  }
-  .button-group button:hover:not(.active) {
-    background-color: #3a3a3a;
-  }
+:root.dark-mode .output {
+  background-color: #1e1e1e;
+  color: #d4d4d4;
+}
+:root.dark-mode .output:hover {
+  background-color: #2a2a2a;
+}
+:root.dark-mode .tool-section {
+  border-color: #444;
+}
+:root.dark-mode .refresh-button {
+  background-color: #2a2a2a;
+  border-color: #444;
+  color: #007aff;
+}
+:root.dark-mode .refresh-button.active {
+  background-color: #007aff;
+  color: white;
+  border-color: #007aff;
+}
+:root.dark-mode .refresh-button:hover:not(.active) {
+  background-color: #3e3e3e;
+}
+:root.dark-mode .refresh-button:hover.active {
+  background-color: #005bb7;
+}
+:root.dark-mode .clear-button {
+  background: rgba(255, 255, 255, 0.1);
+  color: #aaa;
+}
+:root.dark-mode .clear-button:hover {
+  background: rgba(255, 255, 255, 0.2);
+  color: #fff;
+}
+:root.dark-mode input, :root.dark-mode textarea, :root.dark-mode select, :root.dark-mode .button-group {
+  background-color: #2a2a2a;
+  border-color: #444;
+  color: #d4d4d4;
+}
+:root.dark-mode input.is-updating, :root.dark-mode textarea.is-updating {
+  background-color: #1a1a1a;
+  border-color: #333;
+  color: #888;
+}
+:root.dark-mode .button-group button {
+  background-color: #2a2a2a;
+  color: #d4d4d4;
+}
+:root.dark-mode .button-group button:not(:last-child) {
+  border-right-color: #444;
+}
+:root.dark-mode .button-group button.active {
+  background-color: #007aff;
+  color: white;
+}
+:root.dark-mode .button-group button:hover:not(.active) {
+  background-color: #3a3a3a;
 }
 </style>

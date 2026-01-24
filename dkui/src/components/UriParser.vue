@@ -340,42 +340,40 @@ textarea {
   background-color: #f0f0f0;
 }
 
-@media (prefers-color-scheme: dark) {
-  .component-value {
-    background-color: #1e1e1e;
-    color: #d4d4d4;
-  }
-  .component-value:hover {
-    background-color: #2a2a2a;
-  }
-  .tool-section {
-    border-color: #444;
-  }
-  textarea {
-    background-color: #2a2a2a;
-    border-color: #444;
-    color: #d4d4d4;
-  }
-  .component-name {
-    color: #aaa;
-  }
-  .suggestions-dropdown {
-    background-color: #2a2a2a;
-    border-color: #444;
-  }
-  .clear-button {
-    background: rgba(255, 255, 255, 0.1);
-    color: #aaa;
-  }
-  .clear-button:hover {
-    background: rgba(255, 255, 255, 0.2);
-    color: #fff;
-  }
-  .suggestion-item {
-    color: #d4d4d4;
-  }
-  .suggestion-item:hover, .suggestion-item.active {
-    background-color: #3e3e3e;
-  }
+:root.dark-mode .component-value {
+  background-color: #1e1e1e;
+  color: #d4d4d4;
+}
+:root.dark-mode .component-value:hover {
+  background-color: #2a2a2a;
+}
+:root.dark-mode .tool-section {
+  border-color: #444;
+}
+:root.dark-mode textarea {
+  background-color: #2a2a2a;
+  border-color: #444;
+  color: #d4d4d4;
+}
+:root.dark-mode .component-name {
+  color: #aaa;
+}
+:root.dark-mode .suggestions-dropdown {
+  background-color: #2a2a2a;
+  border-color: #444;
+}
+:root.dark-mode .clear-button {
+  background: rgba(255, 255, 255, 0.1);
+  color: #aaa;
+}
+:root.dark-mode .clear-button:hover {
+  background: rgba(255, 255, 255, 0.2);
+  color: #fff;
+}
+:root.dark-mode .suggestion-item {
+  color: #d4d4d4;
+}
+:root.dark-mode .suggestion-item:hover, :root.dark-mode .suggestion-item.active {
+  background-color: #3e3e3e;
 }
 </style>
