@@ -1,36 +1,101 @@
 <script setup>
-import { ref, onMounted, onUnmounted, watch, computed, nextTick } from "vue";
-import { invoke } from "@tauri-apps/api/core";
-import { listen } from "@tauri-apps/api/event";
-import { save, open } from "@tauri-apps/plugin-dialog";
-import { useDebounce } from "../composables/useDebounce";
+import {computed, nextTick, onMounted, onUnmounted, ref, watch} from "vue";
+import {invoke} from "@tauri-apps/api/core";
+import {listen} from "@tauri-apps/api/event";
+import {open, save} from "@tauri-apps/plugin-dialog";
+import {useDebounce} from "../composables/useDebounce";
 import VueJsonPretty from 'vue-json-pretty';
 import 'vue-json-pretty/lib/styles.css';
 
-const props = defineProps({
+const _ = defineProps({
 });
 
 const emit = defineEmits(['update:json', 'update:query']);
 
-function init_tab() {
-  return {
-    jsonInput: "",
-    jsonOutput: "",
-    jsonQuery: "",
-    jsonQuerying: false,
-    jsonKeys: [],
-    showSuggestions: false,
-    selectedIndex: -1,
-  };
+const tabs = ref([]);
+const activeTabIndex = ref(0);
+const activeTab = computed(() => {
+  return tabs.value[activeTabIndex.value] ?? null;
+});
+const tabsScrollContainer = ref(null);
+invoke_jsonparser_init_tabs();
+async function invoke_jsonparser_init_tabs() {
+  try {
+    const resp_tabs = await invoke("jsonparser_init_tabs");
+    for (const resp of resp_tabs) {
+      tabs.value.push({
+        id: resp.id,
+        idx: resp.idx,
+        jsonInput: resp.json_input || "",
+        jsonOutput: resp.json_output || "",
+        jsonQuery: resp.json_query || "",
+        jsonQuerying: false,
+        jsonKeys: [],
+        showSuggestions: false,
+        selectedIndex: resp.selected_index,
+      });
+    }
+    activeTabIndex.value = 0;
+    ensureActiveTabVisible();
+  } catch (e) {
+    console.error(e);
+  } finally {
+  }
 }
 
-const tabs = ref([init_tab()]);
-const activeTabIndex = ref(0);
-const activeTab = computed(() => tabs.value[activeTabIndex.value]);
+async function invoke_jsonparser_add_tab() {
+  try {
+    const resp = await invoke("jsonparser_add_tab");
+    const new_tab = {
+      id: resp.id,
+      idx: resp.idx,
+      jsonInput: "",
+      jsonOutput: "",
+      jsonQuery: "",
+      jsonQuerying: false,
+      jsonKeys: [],
+      showSuggestions: false,
+      selectedIndex: resp.selected_index,
+    };
+    tabs.value.push(new_tab);
+    activeTabIndex.value = tabs.value.length - 1;
+    ensureActiveTabVisible();
+  } catch (e) {
+    console.error(e);
+  } finally {
+  }
+}
+
+async function invoke_jsonparser_remove_tab(dst, indexOfTabs){
+  try{
+    await invoke("jsonparser_remove_tab", {tabId: dst.id});
+    tabs.value.splice(indexOfTabs, 1);
+    if (tabs.value.length === 0 ) {
+      invoke_jsonparser_add_tab();
+      return;
+    }
+    if (activeTabIndex.value >= tabs.value.length) {
+      activeTabIndex.value = tabs.value.length - 1;
+    }
+    ensureActiveTabVisible();
+  }catch (e){
+    console.error(e);
+  }finally {
+
+  }
+}
+
+function addTab() {
+  invoke_jsonparser_add_tab();
+}
+
+function removeTab(index) {
+  const dst = tabs.value[index]
+  invoke_jsonparser_remove_tab(dst, index);
+}
 
 const isDragging = ref(false);
 const queryContainer = ref(null);
-const tabsScrollContainer = ref(null);
 
 const { debounce } = useDebounce();
 
@@ -87,29 +152,9 @@ function ensureActiveTabVisible() {
   }, 50);
 }
 
-function addTab() {
-  tabs.value.push(init_tab());
-  activeTabIndex.value = tabs.value.length - 1;
-  ensureActiveTabVisible();
-}
-
-function removeTab(index) {
-  if (tabs.value.length <= 1) {
-    tabs.value[0] =init_tab();
-    return;
-  }
-  tabs.value.splice(index, 1);
-  if (activeTabIndex.value >= tabs.value.length) {
-    activeTabIndex.value = tabs.value.length - 1;
-  }
-  ensureActiveTabVisible();
-}
-
 watch(activeTabIndex, () => {
   ensureActiveTabVisible();
 });
-
-
 
 async function processFile(path) {
   try {
@@ -138,7 +183,15 @@ async function queryJson(reload = false) {
   }
   currentTab.jsonQuerying = true;
   try {
-    currentTab.jsonOutput = await invoke("query_json", {json: currentTab.jsonInput, query: currentTab.jsonQuery, reload});
+    currentTab.jsonOutput = await invoke(
+        "jsonparser_query_json",
+        {
+          json: currentTab.jsonInput,
+          query: currentTab.jsonQuery,
+          reload,
+          tabId: currentTab.id,
+        }
+    );
   } catch (e) {
     currentTab.jsonOutput = "Error: " + e;
   } finally {
@@ -154,8 +207,8 @@ async function updateKeys() {
       currentTab.jsonKeys = [];
       return;
     }
-    const paths = await invoke("search_json_paths", {
-      json: currentTab.jsonInput,
+    const paths = await invoke("jsonparser_search_json_paths", {
+      tabId: currentTab.id,
       query: currentTab.jsonQuery || null
     });
     if (paths.length > 0) {
@@ -228,11 +281,17 @@ async function saveJsonToFile() {
   }
 }
 
-watch(() => activeTab.value.jsonKeys, () => {
+watch(() => activeTab.value?.jsonKeys, () => {
+  if (!activeTab.value) {
+    return;
+  }
   activeTab.value.selectedIndex = -1;
 });
 
-watch([() => activeTab.value.jsonInput, () => activeTab.value.jsonQuery, () => activeTabIndex.value], debounce(() => {
+watch([() => activeTab.value?.jsonInput, () => activeTab.value?.jsonQuery, () => activeTabIndex.value], debounce(() => {
+  if (!activeTab.value) {
+    return;
+  }
   queryJson();
   emit('update:json', activeTab.value.jsonInput);
   emit('update:query', activeTab.value.jsonQuery);
@@ -282,7 +341,7 @@ onMounted(async () => {
           class="tab-item" 
           :class="{ active: index === activeTabIndex }"
           @click="activeTabIndex = index">
-          <span class="tab-title">JSON {{ index + 1 }}</span>
+          <span class="tab-title">JSON {{ tab.idx }}</span>
           <button class="tab-close" @click.stop="removeTab(index)" v-if="tabs.length > 1">
             <svg viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
               <line x1="18" y1="6" x2="6" y2="18"></line>
@@ -304,7 +363,7 @@ onMounted(async () => {
       </button>
     </div>
     <div class="json-inputs">
-      <div class="textarea-container" :class="{ dragging: isDragging }">
+      <div v-if="activeTab" class="textarea-container" :class="{ dragging: isDragging }">
         <textarea v-model="activeTab.jsonInput" placeholder="Enter JSON..." rows="5"></textarea>
         <div class="textarea-actions">
           <button v-if="activeTab.jsonInput" class="action-button" @click="queryJson(true)" title="Run" :disabled="activeTab.jsonQuerying">
@@ -330,11 +389,10 @@ onMounted(async () => {
         </div>
       </div>
     </div>
-    <div class="row query-row" ref="queryContainer">
+    <div v-if="activeTab" class="row query-row" ref="queryContainer">
       <input v-model="activeTab.jsonQuery" placeholder="json path/key/val filter"
         @input="activeTab.showSuggestions = true"
         @focus="activeTab.showSuggestions = true"
-        @blur="setTimeout(() => activeTab.showSuggestions = false, 200)"
         @keydown="handleKeyDown" />
       <div v-if="activeTab.showSuggestions && activeTab.jsonKeys.length > 0" class="suggestions-dropdown">
         <div v-for="(key, index) in activeTab.jsonKeys" :key="key.path"
@@ -345,7 +403,7 @@ onMounted(async () => {
         </div>
       </div>
     </div>
-    <div class="json-outputs">
+    <div v-if="activeTab" class="json-outputs">
       <div v-if="activeTab.jsonOutput" class="output">
         <div class="output-actions">
           <button v-if="!activeTab.jsonOutput.startsWith('Error: ')" class="action-button" @click="saveJsonToFile" title="Save to File">

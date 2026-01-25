@@ -35,4 +35,7 @@ itertools = { workspace = true }
 sha2 = { workspace = true }
 hex = { workspace = true }
 directories = { workspace = true }
-derive_more = { workspace = true }
+derive_more = { workspace = true, features = ["deref_mut"] }
+uuid = { workspace = true }
+tokio = { workspace = true }
+moka = { workspace = true }

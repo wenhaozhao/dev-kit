@@ -1,54 +1,55 @@
+use crate::components::json::jsonparser::JsonParserTabState;
+use crate::components::jsonparser::JsonParserTab;
 use crate::SharedAppState;
-use dev_kit::command::json::{DiffTool, Json, JsonpathMatch, QueryType};
+use dev_kit::command::json::{DiffTool, JsonpathMatch, QueryType};
 use itertools::Itertools;
-use sha2::Digest;
-use std::collections::HashMap;
 use std::str::FromStr;
-use std::sync::Arc;
 
-mod jsonparser;
+pub mod jsonparser;
+pub mod jsondiff;
 
-
-#[derive(Default)]
-pub struct JsonCache {
-    cache: HashMap<String, Json>,
-}
-
-impl JsonCache {
-    fn get_or_parse(&mut self, tab_id: &str, json_str: &str, reload: bool) -> Result<Json, String> {
-        let json_sha = {
-            let json_sha = &sha2::Sha256::digest(json_str.as_bytes())[..];
-            hex::encode(json_sha)
-        };
-        let cache_key = format!("{}:{}", tab_id, json_sha);
-        if let (false, Some(parsed)) = (reload, self.cache.get(&cache_key)) {
-            return Ok(parsed.clone());
-        }
-        let json = {
-            let json = Json::from_str(json_str).map_err(|e| e.to_string())?;
-            let json_value = Arc::<serde_json::Value>::try_from(&json).map_err(|e| e.to_string())?;
-            Json::JsonValue(json_value)
-        };
-        // Limit cache size to avoid memory issues
-        if self.cache.len() > 1 {
-            self.cache.clear();
-        }
-        self.cache.insert(cache_key, json.clone());
-        Ok(json)
-    }
+#[tauri::command]
+pub async fn jsonparser_init_tabs(
+    state: tauri::State<'_, SharedAppState>,
+) -> Result<Vec<JsonParserTab>, String> {
+    let state = state.read().await;
+    let tabs = state.jsonparser.get_tabs().await.map_err(|e| e.to_string())?;
+    Ok(tabs)
 }
 
 #[tauri::command]
-pub async fn query_json(
+pub async fn jsonparser_add_tab(
+    state: tauri::State<'_, SharedAppState>,
+) -> Result<JsonParserTabState, String> {
+    let mut app_state = state.write().await;
+    let jsonparser_path = app_state.jsonparser_path().await?;
+    let tab = app_state.jsonparser.add_tab(&jsonparser_path).await?;
+    Ok(tab)
+}
+
+#[tauri::command]
+pub async fn jsonparser_remove_tab(
+    state: tauri::State<'_, SharedAppState>,
+    tab_id: String,
+) -> Result<(), String> {
+    let mut app_state = state.write().await;
+    let jsonparser_path = app_state.jsonparser_path().await?;
+    app_state.jsonparser.remove_tab(&jsonparser_path, &tab_id).await?;
+    Ok(())
+}
+
+#[tauri::command]
+pub async fn jsonparser_query_json(
     state: tauri::State<'_, SharedAppState>,
     json: String,
     query: Option<String>,
     query_type: Option<String>,
     reload: bool,
+    tab_id: String,
 ) -> Result<String, String> {
     let mut app_state = state.write().await;
-    let cache = &mut app_state.json_cache;
-    let value = cache.get_or_parse("tab_0", &json, reload)?;
+    let jsonparser_path = app_state.jsonparser_path().await?;
+    let value = app_state.jsonparser.get_or_parse(&jsonparser_path, &tab_id, &json, reload).await?;
     let arr = value.query(
         query.as_deref(), query_type.and_then(|s|
             QueryType::from_str(&s).ok()
@@ -58,15 +59,46 @@ pub async fn query_json(
 }
 
 #[tauri::command]
-pub async fn search_json_paths(
+pub async fn jsonparser_search_json_paths(
+    state: tauri::State<'_, SharedAppState>,
+    tab_id: String,
+    query: Option<String>,
+) -> Result<Vec<JsonpathMatch>, String> {
+    let mut app_state = state.write().await;
+    let jsonparser_path = app_state.jsonparser_path().await?;
+    let array = app_state.jsonparser.search_paths(
+        &jsonparser_path, &tab_id, query.as_deref().unwrap_or_default()
+    ).await?;
+    Ok(array)
+}
+
+#[tauri::command]
+pub async fn jsondiff_query_json(
+    state: tauri::State<'_, SharedAppState>,
+    json: String,
+    query: Option<String>,
+    query_type: Option<String>,
+    reload: bool,
+) -> Result<String, String> {
+    let app_state = state.write().await;
+    let value = app_state.jsondiff.get_or_parse(&json, reload).await?;
+    let arr = value.query(
+        query.as_deref(), query_type.and_then(|s|
+            QueryType::from_str(&s).ok()
+        ), true,
+    ).map_err(|e| e.to_string())?;
+    Ok(arr)
+}
+
+#[tauri::command]
+pub async fn jsondiff_search_json_paths(
     state: tauri::State<'_, SharedAppState>,
     json: String,
     query: Option<String>,
     query_type: Option<String>,
 ) -> Result<Vec<JsonpathMatch>, String> {
-    let mut app_state = state.write().await;
-    let cache = &mut app_state.json_cache;
-    let value = cache.get_or_parse("tab_0", &json, false)?;
+    let app_state = state.read().await;
+    let value = app_state.jsondiff.get_or_parse(&json, false).await?;
     let query_type = query_type.and_then(|s| QueryType::from_str(&s).ok());
     match value.search_paths(query.as_deref(), query_type) {
         Ok(arr) => {
@@ -79,7 +111,7 @@ pub async fn search_json_paths(
 }
 
 #[tauri::command]
-pub async fn diff_json(
+pub async fn jsondiff_diff_json(
     state: tauri::State<'_, SharedAppState>,
     left: String,
     right: String,
@@ -87,10 +119,9 @@ pub async fn diff_json(
     query_type: Option<String>,
     diff_tool: Option<String>,
 ) -> Result<(), String> {
-    let mut app_state = state.write().await;
-    let cache = &mut app_state.json_cache;
-    let left_val = cache.get_or_parse("tab_0", &left, false)?;
-    let right_val = cache.get_or_parse("tab_0", &right, false)?;
+    let app_state = state.read().await;
+    let left_val = app_state.jsondiff.get_or_parse(&left, false).await?;
+    let right_val = app_state.jsondiff.get_or_parse(&right, false).await?;
     let query_type = query_type.and_then(|s|
         QueryType::from_str(&s).ok()
     );

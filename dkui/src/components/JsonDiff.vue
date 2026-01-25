@@ -171,7 +171,14 @@ async function queryLeftJson(reload = false) {
   }
   jsonLeftQuerying.value = true;
   try {
-    jsonLeftOutput.value = await invoke("query_json", {json: jsonLeftInput.value, query: jsonQuery.value, reload});
+    jsonLeftOutput.value = await invoke(
+        "jsondiff_query_json",
+        {
+          json: jsonLeftInput.value,
+          query: jsonQuery.value,
+          reload,
+        }
+    );
   } catch (e) {
     jsonLeftOutput.value = "Error: " + e;
   } finally {
@@ -187,7 +194,14 @@ async function queryRightJson(reload = false) {
   }
   jsonRightQuerying.value = true;
   try {
-    jsonRightOutput.value = await invoke("query_json", {json: jsonRightInput.value, query: jsonQuery.value, reload});
+    jsonRightOutput.value = await invoke(
+        "jsondiff_query_json",
+        {
+          json: jsonRightInput.value,
+          query: jsonQuery.value,
+          reload
+        }
+    );
   } catch (e) {
     jsonRightOutput.value = "Error: " + e;
   } finally {
@@ -201,7 +215,7 @@ async function updateKeys() {
       jsonKeys.value = [];
       return;
     }
-    const paths = await invoke("search_json_paths", {
+    const paths = await invoke("jsondiff_search_json_paths", {
       json: jsonLeftInput.value,
       query: jsonQuery.value || null
     });
@@ -255,7 +269,7 @@ function handleKeyDown(e) {
 
 async function diffJson() {
   try {
-    await invoke("diff_json", {
+    await invoke("jsondiff_diff_json", {
       left: jsonLeftInput.value,
       right: jsonRightInput.value,
       query: jsonQuery.value || null,
@@ -373,7 +387,6 @@ watch(() => props.initialQuery, debounce((newVal) => {
       <input v-model="jsonQuery" placeholder="json path/key/val filter"
         @input="showSuggestions = true"
         @focus="showSuggestions = true"
-        @blur="setTimeout(() => showSuggestions = false, 200)"
         @keydown="handleKeyDown" />
       <div class="diff-actions">
         <select v-model="diffTool" v-if="availableDiffTools.length > 0">
