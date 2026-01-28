@@ -5,7 +5,7 @@ resolver = "3"
 
 [workspace.package]
 authors = ["zhaowenhao@mhlife.vip"]
-version = "0.1.11"
+version = "0.1.12"
 edition = "2024"
 description = "A collection of utilities and tools for development, including URI, JSON, and Time tools."
 license = "MIT OR Apache-2.0"
