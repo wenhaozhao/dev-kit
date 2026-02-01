@@ -100,10 +100,9 @@ function updateQuery(val) {
 
     <KeepAlive>
       <JsonDiff v-if="currentTab === 'diff'" 
-        :initialLeftJson="jsonInput"
-        :initialQuery="jsonQuery"
         @update:leftJson="updateJson"
-        @update:query="updateQuery" />
+        @update:query="updateQuery"
+      />
     </KeepAlive>
 
     <KeepAlive>
