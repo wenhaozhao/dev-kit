@@ -39,3 +39,4 @@ derive_more = { workspace = true, features = ["deref_mut"] }
 uuid = { workspace = true }
 tokio = { workspace = true }
 moka = { workspace = true }
+fix-path-env = { git = "https://github.com/tauri-apps/fix-path-env-rs" }
