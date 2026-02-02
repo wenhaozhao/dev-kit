@@ -307,6 +307,9 @@ pub enum JsonpathMatch {
 mod jsonpath_match;
 pub use jsonpath_match::*;
 
+lazy_static! {
+    static ref START_NUM_PATTERN: regex::Regex = regex::Regex::new(r"^\d+$").unwrap();
+}
 impl Json {
     fn search_key_recursive(jsons: &[&Value], key_pattern: &KeyPattern, path: &str) -> Vec<JsonpathMatch> {
         jsons.iter().flat_map(|&json| {
@@ -314,15 +317,12 @@ impl Json {
                 Value::Object(map) => {
                     let mut vec = Vec::with_capacity(map.len());
                     for (k, v) in map {
-                        lazy_static! {
-                            static ref START_NUM_PATTERN: regex::Regex = regex::Regex::new(r"^\d+$").unwrap();
-                        }
                         let path = if START_NUM_PATTERN.is_match(k) {
                             format!("{}['{}']", path, k)
                         } else {
                             format!("{}.{}", path, k)
                         };
-                        let mut children = Self::search_key_recursive(&vec![v], key_pattern, &path);
+                        let mut children = Self::search_key_recursive(&[v], key_pattern, &path);
                         if key_pattern.match_key(k) {
                             vec.push(JsonpathMatch::from(path.as_str()));
                         }
@@ -335,7 +335,7 @@ impl Json {
                     vec.push(format!("{}[*]", path).into());
                     for (idx, json) in array.iter().enumerate() {
                         let path = format!("{}[{}]", path, idx);
-                        let mut children = Self::search_key_recursive(&vec![json], key_pattern, &path);
+                        let mut children = Self::search_key_recursive(&[json], key_pattern, &path);
                         let _ = vec.append(&mut children);
                     }
                     if vec.len() > 1 {
