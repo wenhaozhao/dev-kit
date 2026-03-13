@@ -11,6 +11,7 @@ import UriDecoder from "./components/UriDecoder.vue";
 import TimeParser from "./components/TimeParser.vue";
 import QrCodeGenerator from "./components/QrCodeGenerator.vue";
 import Base64Parser from "./components/Base64Parser.vue";
+import DivCalculator from "./components/DivCalculator.vue";
 
 const { theme, toggleTheme } = useTheme();
 
@@ -64,6 +65,7 @@ function updateQuery(val) {
       <button :class="{ active: currentTab === 'time' }" @click="currentTab = 'time'">Time Parser</button>
       <button :class="{ active: currentTab === 'qrcode' }" @click="currentTab = 'qrcode'">QR Code</button>
       <button :class="{ active: currentTab === 'base64' }" @click="currentTab = 'base64'">Base64</button>
+      <button :class="{ active: currentTab === 'div' }" @click="currentTab = 'div'">Div</button>
       <a href="#" class="github-link theme-toggle" @click.prevent="toggleTheme" :title="theme === 'dark' ? 'Switch to Light Mode' : 'Switch to Dark Mode'">
         <svg v-if="theme === 'dark'" height="24" viewBox="0 0 24 24" width="24" fill="currentColor">
           <path d="M12,7c-2.76,0-5,2.24-5,5s2.24,5,5,5s5-2.24,5-5S14.76,7,12,7L12,7z M2,13l2,0c0.55,0,1-0.45,1-1s-0.45-1-1-1l-2,0 c-0.55,0-1,0.45-1,1S1.45,13,2,13L2,13z M20,13l2,0c0.55,0,1-0.45,1-1s-0.45-1-1-1l-2,0c-0.55,0-1,0.45-1,1S19.45,13,20,13L20,13z M11,2v2c0,0.55,0.45,1,1,1s1-0.45,1-1V2c0-0.55-0.45-1-1-1S11,1.45,11,2L11,2z M11,20v2c0,0.55,0.45,1,1,1s1-0.45,1-1v-2 c0-0.55-0.45-1-1-1S11,19.45,11,20L11,20z M5.99,4.58c-0.39-0.39-1.03-0.39-1.41,0c-0.39,0.39-0.39,1.03,0,1.41l1.06,1.06 c0.39,0.39,1.03,0.39,1.41,0s0.39-1.03,0-1.41L5.99,4.58z M18.36,16.95c-0.39-0.39-1.03-0.39-1.41,0c-0.39,0.39-0.39,1.03,0,1.41 l1.06,1.06c0.39,0.39,1.03,0.39,1.41,0c0.39-0.39,0.39-1.03,0-1.41L18.36,16.95z M19.42,5.99c0.39-0.39,0.39-1.03,0-1.41 c-0.39-0.39-1.03-0.39-1.41,0l-1.06,1.06c-0.39,0.39-0.39,1.03,0,1.41s1.03,0.39,1.41,0L19.42,5.99z M7.05,18.36 c0.39-0.39,0.39-1.03,0-1.41c-0.39-0.39-1.03-0.39-1.41,0l-1.06,1.06c-0.39,0.39-0.39,1.03,0,1.41s1.03,0.39,1.41,0L7.05,18.36z" />
@@ -115,6 +117,10 @@ function updateQuery(val) {
 
     <KeepAlive>
       <Base64Parser v-if="currentTab === 'base64'" />
+    </KeepAlive>
+
+    <KeepAlive>
+      <DivCalculator v-if="currentTab === 'div'" />
     </KeepAlive>
   </main>
 </template>
