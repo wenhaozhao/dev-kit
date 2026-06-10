@@ -33,13 +33,22 @@ pub enum Base64Command {
     },
 }
 
-pub fn decode(input: &str, url_safe: bool, no_pad: bool) -> crate::Result<Vec<u8>> {
-    let text = if let Some(input) = PathBuf::from_str(input).ok().and_then(|p| fs::read_to_string(p).ok()) {
-        input
-    } else {
-        input.to_string()
+lazy_static::lazy_static! {
+    static ref REGEX_0: regex::Regex = regex::Regex::from_str(r#"^data:((\w+)/(\w+));base64,(.+)$"#).unwrap();
+}
+
+pub fn decode(input: &str, url_safe: bool, no_pad: bool) -> crate::Result<(Vec<u8>,Option<mime::Mime>)> {
+    let (text, mime) = if let Some((_,[mime, _type, _sub_type, content]))=REGEX_0.captures(input).map(|it|it.extract()){
+        let mime: Option<mime::Mime> = mime.parse().ok();
+
+        (content.to_string(), mime)
+    } else if let Some(input) = PathBuf::from_str(input).ok().and_then(|p| fs::read_to_string(p).ok()){
+        (input,None)
+    }else{
+        (input.to_string(),None)
     };
-    if url_safe {
+
+    let buf = if url_safe {
         if no_pad {
             base64::prelude::BASE64_URL_SAFE.decode(text.as_bytes())
         } else {
@@ -51,7 +60,23 @@ pub fn decode(input: &str, url_safe: bool, no_pad: bool) -> crate::Result<Vec<u8
         } else {
             base64::prelude::BASE64_STANDARD.decode(text.as_bytes())
         }
-    }.map_err(|e| anyhow::anyhow!("base64 encode failed: {}", e))
+    }.map_err(|e| anyhow::anyhow!("base64 encode failed: {}", e))?;
+   let mime = if let Some(mime) = mime{
+        Some(mime)
+    }else{
+       image::guess_format(&buf).ok().and_then(|it| it.to_mime_type().parse().ok())
+    };
+    /*
+    match mime.type_(){
+        mime::TEXT =>{
+            content.to_string()
+        },
+        mime::IMAGE => {},
+        mime::AUDIO =>{},
+        mime::VCARD=>{}
+    }
+ */
+    Ok((buf,mime))
 }
 
 pub fn encode(input: &str, url_safe: bool, no_pad: bool) -> crate::Result<String> {
@@ -85,7 +110,7 @@ impl super::Command for Base64Command {
     fn run(&self) -> crate::Result<()> {
         match self {
             Self::Decode { input, url_safe, no_pad, raw_output, file } => {
-                let data = decode(&input, *url_safe, *no_pad)?;
+                let (data, _mime) = decode(&input, *url_safe, *no_pad)?;
                 match (*raw_output, file) {
                     (false, None) => {
                         let text = String::from_utf8_lossy(&data);
