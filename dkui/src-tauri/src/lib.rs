@@ -1,7 +1,7 @@
 use derive_more::Deref;
 use dev_kit as devkit;
 use std::fs;
-use std::sync::{Arc};
+use std::sync::Arc;
 use tauri::async_runtime::RwLock;
 
 mod components;
@@ -16,6 +16,7 @@ use app_state::AppState;
 fn save_to_file(path: String, content: String) -> Result<(), String> {
     fs::write(&path, content).map_err(|e| e.to_string())
 }
+
 
 #[derive(Clone, Deref)]
 struct SharedAppState(Arc<RwLock<AppState>>);
@@ -47,10 +48,11 @@ pub fn run() {
 }
 
 fn tauri_init(app_state: AppState) -> Result<(), String> {
+    let shared_app_state = SharedAppState(Arc::new(RwLock::new(app_state)));
     let result = tauri::Builder::default()
         .plugin(tauri_plugin_opener::init())
         .plugin(tauri_plugin_dialog::init())
-        .manage(SharedAppState(Arc::new(RwLock::new(app_state))))
+        .manage(shared_app_state.clone())
         .invoke_handler(tauri::generate_handler![
             show_add_to_path_bth,
             add_to_path,
@@ -84,3 +86,4 @@ fn tauri_init(app_state: AppState) -> Result<(), String> {
         }
     }
 }
+

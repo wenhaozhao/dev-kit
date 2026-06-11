@@ -24,13 +24,13 @@ tempfile = { workspace = true }
 regex = { version = "1.12" }
 futures = { version = "0.3" }
 tokio = { workspace = true }
-url = "2.5"
+url = { workspace = true }
 reqwest = { version = "0.13", default-features = false, features = ["rustls"] }
 percent-encoding = "2.3"
 jsonpath-rust = "1.0"
 dateparser = { version = "0.2" }
 qrcode = { version = "0.14", features = ["image", "svg"] }
-image = "0.25"
+image = { workspace = true }
 uuid = { version = "1.19", features = ["v4"] }
 log = { workspace = true }
 env_logger = { workspace = true }
@@ -46,7 +46,7 @@ serde_urlencoded = { workspace = true }
 serde_json = { workspace = true }
 which = { workspace = true }
 base64 = { workspace = true }
-mime = "0.3.17"
+mime = { workspace = true }
 [features]
 read_stdin = []
 default = ["read_stdin"]

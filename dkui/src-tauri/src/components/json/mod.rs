@@ -22,8 +22,7 @@ pub async fn jsonparser_add_tab(
     state: tauri::State<'_, SharedAppState>,
 ) -> Result<JsonParserTabState, String> {
     let mut app_state = state.write().await;
-    let jsonparser_path = app_state.jsonparser_path().await?;
-    let tab = app_state.jsonparser.add_tab(&jsonparser_path).await?;
+    let tab = app_state.jsonparser.add_tab().await?;
     Ok(tab)
 }
 
@@ -33,8 +32,7 @@ pub async fn jsonparser_remove_tab(
     tab_id: String,
 ) -> Result<(), String> {
     let mut app_state = state.write().await;
-    let jsonparser_path = app_state.jsonparser_path().await?;
-    app_state.jsonparser.remove_tab(&jsonparser_path, &tab_id).await?;
+    app_state.jsonparser.remove_tab(&tab_id).await?;
     Ok(())
 }
 
@@ -48,8 +46,7 @@ pub async fn jsonparser_query_json(
     tab_id: String,
 ) -> Result<String, String> {
     let mut app_state = state.write().await;
-    let jsonparser_path = app_state.jsonparser_path().await?;
-    let value = app_state.jsonparser.get_or_parse(&jsonparser_path, &tab_id, &json, reload).await?;
+    let value = app_state.jsonparser.get_or_parse(&tab_id, &json, reload).await?;
     let arr = value.query(
         query.as_deref(), query_type.and_then(|s|
             QueryType::from_str(&s).ok()
@@ -65,9 +62,8 @@ pub async fn jsonparser_search_json_paths(
     query: Option<String>,
 ) -> Result<Vec<JsonpathMatch>, String> {
     let mut app_state = state.write().await;
-    let jsonparser_path = app_state.jsonparser_path().await?;
     let array = app_state.jsonparser.search_paths(
-        &jsonparser_path, &tab_id, query.as_deref().unwrap_or_default()
+        &tab_id, query.as_deref().unwrap_or_default()
     ).await?;
     Ok(array)
 }

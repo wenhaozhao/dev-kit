@@ -326,6 +326,27 @@ onMounted(async () => {
     document.removeEventListener('click', handleClickOutside);
   });
 });
+
+async function copyToClipboard(e) {
+  let text = e.target.innerText;
+  if (typeof(text) === 'string') {
+    debugger
+    if (text.startsWith('"') && text.endsWith('"')) {
+      text = text.slice(1,-1);
+    }
+  }
+  try {
+    await navigator.clipboard.writeText(text);
+    const originalBg = e.target.style.backgroundColor;
+    e.target.style.backgroundColor = '#d4edda';
+    setTimeout(() => {
+      e.target.style.backgroundColor = originalBg;
+    }, 500);
+  } catch (err) {
+    console.error('Failed to copy: ', err);
+  }
+}
+
 </script>
 
 <template>
@@ -420,6 +441,7 @@ onMounted(async () => {
           :data="parsedJsonOutput"
           :show-length="true"
           :deep="3"
+          @dblclick="copyToClipboard"
         />
       </div>
     </div>

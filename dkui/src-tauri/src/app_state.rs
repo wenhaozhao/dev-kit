@@ -1,7 +1,6 @@
 use crate::components::jsondiff::JsonDiffState;
 use crate::components::jsonparser::JsonParserState;
 use directories::ProjectDirs;
-use std::path::PathBuf;
 
 pub struct AppState {
     pub proj_dirs: ProjectDirs,
@@ -21,14 +20,6 @@ impl AppState {
 }
 
 impl AppState {
-    pub async fn jsonparser_path(&self) -> Result<PathBuf, String> {
-        let path = self.proj_dirs.data_dir().join("jsonparser");
-        if !path.exists() {
-            let _ = tokio::fs::create_dir_all(&path).await.map_err(|e| e.to_string());
-        }
-        Ok(path)
-    }
-
     fn init_jsonparser(proj_dirs: &ProjectDirs) -> Result<JsonParserState, String> {
         let path = proj_dirs.data_dir().join("jsonparser");
         if !path.exists() {

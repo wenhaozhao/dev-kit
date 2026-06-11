@@ -1,4 +1,4 @@
-use derive_more::From;
+use derive_more::{Deref, DerefMut, From};
 use dev_kit::command::json::{Json, JsonpathMatch};
 use serde::{Deserialize, Serialize};
 use sha2::Digest;
@@ -9,32 +9,44 @@ use std::str::FromStr;
 use std::sync::Arc;
 use tokio::fs;
 
-#[derive(Debug, Default, Serialize, Deserialize)]
+#[derive(Debug, Deref, DerefMut)]
 pub struct JsonParserState {
+    data_path: PathBuf,
+    #[deref]
+    #[deref_mut]
+    inner: JsonParserStateInner,
+}
+
+#[derive(Debug, Default, Serialize, Deserialize)]
+pub struct JsonParserStateInner {
     active_tab_index: usize,
     tabs: HashMap<String, JsonParserTabState>,
 }
 
 impl JsonParserState {
-    pub fn init<P: AsRef<Path>>(config_dir: P) -> Result<JsonParserState, String> {
-        let config_path = config_dir.as_ref().join("state.json");
-        let jsonparser_state = if config_path.exists() {
+    pub fn init<P: AsRef<Path>>(data_path: P) -> Result<JsonParserState, String> {
+        let data_path = data_path.as_ref().to_owned();
+        let config_path = data_path.join("state.json");
+        let inner = if config_path.exists() {
             let json_string = std::fs::read_to_string(&config_path).map_err(|e| e.to_string())?;
             serde_json::from_str(&json_string).map_err(|e| e.to_string()).map_err(|e| e.to_string())?
         } else {
-            let mut state = JsonParserState::default();
+            let mut state = JsonParserStateInner::default();
             let tab0 = JsonParserTabState::new(0);
             state.tabs.insert(tab0.id.clone(), tab0);
             let json_string = serde_json::to_string_pretty(&state).map_err(|e| e.to_string())?;
             let _ = std::fs::write(&config_path, &json_string).map_err(|e| e.to_string())?;
             state
         };
-        Ok(jsonparser_state)
+        Ok(JsonParserState {
+            inner,
+            data_path,
+        })
     }
 
-    async fn update_state<P: AsRef<Path>>(&self, config_dir: P) -> Result<(), String> {
-        let config_path = config_dir.as_ref().join("state.json");
-        let tab_json_str = serde_json::to_string_pretty(&self).map_err(|e| e.to_string())?;
+    async fn update_state(&mut self) -> Result<(), String> {
+        let config_path = self.data_path.join("state.json");
+        let tab_json_str = serde_json::to_string_pretty(&**self).map_err(|e| e.to_string())?;
         let _ = fs::write(&config_path, tab_json_str).await.map_err(|e| e.to_string())?;
         Ok(())
     }
@@ -79,17 +91,17 @@ impl JsonParserState {
         Ok(datas)
     }
 
-    pub async fn add_tab<P: AsRef<Path>>(&mut self, config_dir: P) -> Result<JsonParserTabState, String> {
+    pub async fn add_tab(&mut self) -> Result<JsonParserTabState, String> {
         let tab_idx = self.tabs.values().map(|it| it.idx).max().unwrap_or_default().incr();
         let tab = JsonParserTabState::new(tab_idx);
         let tab_id = tab.id.clone();
         let _ = self.tabs.insert(tab_id.clone(), tab);
-        let _ = self.update_state(config_dir).await?;
+        let _ = self.update_state().await?;
         let tab = self.tabs.get(&tab_id).ok_or("Tab not found")?;
         Ok(tab.clone())
     }
 
-    pub async fn remove_tab(&mut self, config_dir: &Path, tab_id: &str) -> Result<(), String> {
+    pub async fn remove_tab(&mut self, tab_id: &str) -> Result<(), String> {
         if let Some(JsonParserTabState {
                         json_input, json_output, ..
                     }) = self.tabs.remove(tab_id) {
@@ -100,11 +112,11 @@ impl JsonParserState {
                 let _ = fs::remove_file(path).await;
             }
         };
-        let _ = self.update_state(config_dir).await?;
+        let _ = self.update_state().await?;
         Ok(())
     }
 
-    pub async fn search_paths(&mut self, config_dir: &Path, tab_id: &str, query: &str) -> Result<Vec<JsonpathMatch>, String> {
+    pub async fn search_paths(&mut self, tab_id: &str, query: &str) -> Result<Vec<JsonpathMatch>, String> {
         let array = {
             let Some(tab) = self.tabs.get_mut(tab_id) else {
                 return Err("Tab not found".to_string());
@@ -121,12 +133,13 @@ impl JsonParserState {
             let _ = tab.json_query.replace(JsonQuery(query.to_string()));
             tab.json_query_cache.as_ref().ok_or("No json-query-cache found".to_string())?.clone()
         };
-        self.update_state(config_dir).await?;
+        self.update_state().await?;
         Ok(array)
     }
 
-    pub async fn get_or_parse<P: AsRef<Path>>(&mut self, config_dir: P, tab_id: &str, json_input_string: &str, reload: bool) -> Result<Json, String> {
+    pub async fn get_or_parse(&mut self, tab_id: &str, json_input_string: &str, reload: bool) -> Result<Json, String> {
         let json_value = {
+            let config_dir = self.data_path.to_owned();
             let Some(tab) = self.tabs.get_mut(tab_id) else {
                 return Err("Tab not found".to_string());
             };
@@ -145,7 +158,7 @@ impl JsonParserState {
                 return Ok(Json::clone(tab.json_output_cache.as_deref().ok_or("No json-output found")?));
             }
             // update json-input
-            let config_dir = config_dir.as_ref();
+
             if let Some(JsonInput(path)) = &tab.json_input {
                 let _ = fs::write(path, json_input_string).await.map_err(|e| e.to_string())?;
             } else {
@@ -174,7 +187,7 @@ impl JsonParserState {
             let _ = tab.json_input_sha.replace(json_input_string_sha);
             Json::clone(tab.json_output_cache.as_deref().ok_or("No json-output found")?)
         };
-        self.update_state(config_dir).await?;
+        self.update_state().await?;
         Ok(json_value)
     }
 }

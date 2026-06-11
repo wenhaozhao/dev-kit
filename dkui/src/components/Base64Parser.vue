@@ -5,7 +5,15 @@ import { listen } from "@tauri-apps/api/event";
 import { open } from "@tauri-apps/plugin-dialog";
 
 const input = ref("");
-const output = ref("");
+const text_output = {
+  data: "",
+  mime: "text/plain",
+  type: "text",
+  subtype: "plain",
+};
+const output = ref({
+  ...text_output
+});
 const mode = ref("decode"); // decode, encode
 const urlSafe = ref(false);
 const noPad = ref(false);
@@ -29,7 +37,10 @@ async function processFile(path) {
       input.value = path;
     }
   } catch (e) {
-    output.value = "Error reading file: " + e;
+    output.value ={
+      ...text_output,
+      data: `Error reading file: ${e}`,
+    };
   }
 }
 
@@ -65,10 +76,9 @@ async function handleBase64() {
   if (!input.value || input.value.startsWith("File: ")) {
     return;
   }
-
   try {
     if (mode.value === "decode") {
-      output.value = await invoke("base64_decode", { 
+      output.value = await invoke("base64_decode", {
         input: input.value,
         urlSafe: urlSafe.value,
         noPad: noPad.value
@@ -81,21 +91,26 @@ async function handleBase64() {
       });
     }
   } catch (e) {
-    output.value = "Error: " + e;
+    output.value ={
+      ...text_output,
+      data: `Error reading file: ${e}`,
+    };
   }
 }
 
 async function onClickDecode() {
   mode.value = 'decode'
-  if (output.value && !output.value.startsWith("Error:")) {
-    input.value = output.value
+  let data = ((output.value || text_output).data) || "";
+  if (!data.startsWith("Error:")) {
+    input.value = data
   }
 }
 
 async function onClickEncode() {
   mode.value = 'encode'
-  if (output.value && !output.value.startsWith("Error:")) {
-    input.value = output.value
+  let data = ((output.value || text_output).data) || "";
+  if (!data.startsWith("Error:")) {
+    input.value = data
   }
 }
 
@@ -168,7 +183,15 @@ watch([input, mode, urlSafe, noPad], debounce(() => {
     
     <div v-if="output" class="output-container">
       <div class="copy-tip">Double Click to Copy</div>
-      <pre class="output" @dblclick="copyToClipboard">{{ output }}</pre>
+      <pre v-if="output.type==='text'" class="output" @dblclick="copyToClipboard">
+        {{ output.data }}
+      </pre>
+      <pre v-else-if="output.type==='image'" class="output" style="text-align: center">
+        <img :alt="output.mime" :src="output.data">
+      </pre>
+    </div>
+    <div v-if="output" class="output-container">
+      <div class="copy-tip">Double Click to Copy</div>
     </div>
   </section>
 </template>

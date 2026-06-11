@@ -66,16 +66,6 @@ pub fn decode(input: &str, url_safe: bool, no_pad: bool) -> crate::Result<(Vec<u
     }else{
        image::guess_format(&buf).ok().and_then(|it| it.to_mime_type().parse().ok())
     };
-    /*
-    match mime.type_(){
-        mime::TEXT =>{
-            content.to_string()
-        },
-        mime::IMAGE => {},
-        mime::AUDIO =>{},
-        mime::VCARD=>{}
-    }
- */
     Ok((buf,mime))
 }
 
