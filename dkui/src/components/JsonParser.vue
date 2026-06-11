@@ -347,6 +347,23 @@ async function copyToClipboard(e) {
   }
 }
 
+async function copyOutputToClipboard(e) {
+  const currentTab = activeTab.value;
+  if (!currentTab.jsonOutput || currentTab.jsonOutput.startsWith('Error: ')) {
+    return;
+  }
+  try {
+    await navigator.clipboard.writeText(currentTab.jsonOutput);
+    const originalBg = e.target.style.backgroundColor;
+    e.target.style.backgroundColor = '#d4edda';
+    setTimeout(() => {
+      e.target.style.backgroundColor = originalBg;
+    }, 500);
+  } catch (err) {
+    console.error('Failed to copy: ', err);
+  }
+}
+
 </script>
 
 <template>
@@ -427,8 +444,18 @@ async function copyToClipboard(e) {
     <div v-if="activeTab" class="json-outputs">
       <div v-if="activeTab.jsonOutput" class="output">
         <div class="output-actions">
-          <button v-if="!activeTab.jsonOutput.startsWith('Error: ')" class="action-button" @click="saveJsonToFile" title="Save to File">
-            <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <button v-if="!activeTab.jsonOutput.startsWith('Error: ')" class="action-button" @click="copyOutputToClipboard"
+                  title="Copy to Clipboard">
+            <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2"
+                 stroke-linecap="round" stroke-linejoin="round">
+              <rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect>
+              <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path>
+            </svg>
+          </button>
+          <button v-if="!activeTab.jsonOutput.startsWith('Error: ')" class="action-button" @click="saveJsonToFile"
+                  title="Save to File">
+            <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2"
+                 stroke-linecap="round" stroke-linejoin="round">
               <path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"></path>
               <polyline points="17 21 17 13 7 13 7 21"></polyline>
               <polyline points="7 3 7 8 15 8"></polyline>

@@ -182,16 +182,13 @@ watch([input, mode, urlSafe, noPad], debounce(() => {
     </div>
     
     <div v-if="output" class="output-container">
-      <div class="copy-tip">Double Click to Copy</div>
+      <div v-if="output.type==='text'" class="copy-tip">Double Click to Copy</div>
       <pre v-if="output.type==='text'" class="output" @dblclick="copyToClipboard">
         {{ output.data }}
       </pre>
       <pre v-else-if="output.type==='image'" class="output" style="text-align: center">
-        <img :alt="output.mime" :src="output.data">
+        <img :alt="output.mime" :src="output.data" style="max-width: 80%;">
       </pre>
-    </div>
-    <div v-if="output" class="output-container">
-      <div class="copy-tip">Double Click to Copy</div>
     </div>
   </section>
 </template>

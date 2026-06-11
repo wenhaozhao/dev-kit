@@ -30,7 +30,10 @@
       "icons/icon.icns",
       "icons/icon.ico"
     ],
-    "targets": "all"
+    "targets": "all",
+    "macOS": {
+      "signingIdentity": "Apple Development: zhaowenhao@mhlife.vip (6GXEL2R543)"
+    }
   },
   "identifier": "vip.mhlife.dkui",
   "productName": "DevKit",
