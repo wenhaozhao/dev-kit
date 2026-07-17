@@ -19,7 +19,11 @@ pub enum Commands {
         #[clap(subcommand)]
         command: time::TimeCommand,
     },
-    #[clap(name = "qrcode", about = "qrcode generator tools, alias 'qr'", alias = "qr")]
+    #[clap(
+        name = "qrcode",
+        about = "qrcode generator tools, alias 'qr'",
+        alias = "qr"
+    )]
     QrCode(qrcode::QrCodeArgs),
     #[clap(about = "base64 tools, alias 'b64'", alias = "b64")]
     Base64 {
@@ -45,9 +49,12 @@ impl Command for Commands {
 }
 
 pub mod base64;
+pub mod formatter;
 mod http_parser;
 pub mod json;
 pub mod qrcode;
+pub mod text;
+pub mod textdiff;
 pub mod time;
 pub mod uri;
 
@@ -62,7 +69,7 @@ fn read_stdin() -> Option<String> {
         for line in stdin.lines() {
             match line {
                 Ok(line) => {
-                    let _ = lines.push(line);
+                    lines.push(line);
                 }
                 Err(err) => {
                     log::error!("read from stdin failed, {}", err);
@@ -90,10 +97,9 @@ impl FromStr for StringInput {
     fn from_str(value: &str) -> Result<Self, Self::Err> {
         if value.is_empty()
             && let Some(string) = read_stdin()
+            && !string.is_empty()
         {
-            if !string.is_empty() {
-                return Ok(Self::from_str(&string)?);
-            }
+            return Self::from_str(&string);
         }
         if value.is_empty() {
             Err(anyhow!("Invalid input"))

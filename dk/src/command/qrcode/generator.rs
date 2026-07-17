@@ -30,7 +30,7 @@ pub fn generate<'a>(
                 let image = qr_code.render::<Luma<u8>>().build();
                 let path =
                     std::env::temp_dir().join(format!("qrcode-{}.png", uuid::Uuid::new_v4()));
-                let _ = image.save(&path)?;
+                image.save(&path)?;
                 path
             };
             QrCodeImageVal::Image(image)
@@ -45,7 +45,7 @@ pub fn generate<'a>(
                     .build();
                 let path =
                     std::env::temp_dir().join(format!("qrcode-{}.svg", uuid::Uuid::new_v4()));
-                let _ = std::fs::write(&path, image.as_bytes())?;
+                std::fs::write(&path, image.as_bytes())?;
                 path
             };
             QrCodeImageVal::Svg(image)
@@ -150,12 +150,6 @@ impl Display for QrVersion {
                 write!(f, "{} ({}*{})", int_val, val.width(), val.width())
             }
         }
-    }
-}
-
-impl Default for QrVersion {
-    fn default() -> Self {
-        Self::Auto
     }
 }
 

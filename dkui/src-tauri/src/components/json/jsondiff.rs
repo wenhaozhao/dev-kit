@@ -26,7 +26,8 @@ impl JsonDiffState {
         }
         let json = {
             let json = Json::from_str(json_str).map_err(|e| e.to_string())?;
-            let json_value = Arc::<serde_json::Value>::try_from(&json).map_err(|e| e.to_string())?;
+            let json_value =
+                Arc::<serde_json::Value>::try_from(&json).map_err(|e| e.to_string())?;
             Json::JsonValue(json_value)
         };
         let _ = self.cache.insert(json_sha, json.clone()).await;

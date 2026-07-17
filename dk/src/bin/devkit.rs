@@ -9,9 +9,7 @@ type Result<T> = anyhow::Result<T>;
 
 fn main() -> Result<()> {
     env_logger::init();
-    let CLI {
-        command, version,
-    } = CLI::parse();
+    let Cli { command, version } = Cli::parse();
     if let Some(command) = command {
         match command.run() {
             Ok(_) => {}
@@ -22,13 +20,13 @@ fn main() -> Result<()> {
     } else if version {
         println!("DevKit v{}", env!("CARGO_PKG_VERSION"));
     } else {
-        CLI::command().print_help()?;
+        Cli::command().print_help()?;
     }
     Ok(())
 }
 
 #[derive(clap::Parser)]
-struct CLI {
+struct Cli {
     #[clap(subcommand)]
     command: Option<devkit::command::Commands>,
     #[clap(long, short, help = "show version")]

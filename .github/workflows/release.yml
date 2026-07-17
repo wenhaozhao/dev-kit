@@ -1,0 +1,124 @@
+name: Release
+
+on:
+  push:
+    tags: ["v*"]
+
+permissions:
+  contents: write
+
+jobs:
+  quality:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          components: rustfmt, clippy
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: dkui/package-lock.json
+      - name: Verify tag and versions
+        run: |
+          ./scripts/check-version.sh
+          test "$GITHUB_REF_NAME" = "v$(sed -n 's/^version = "\([^"]*\)"$/\1/p' Cargo.toml | head -n 1)"
+      - run: cargo fmt --all -- --check
+      - run: cargo clippy --workspace --all-targets --all-features -- -D warnings
+      - run: cargo test --workspace
+      - run: cargo build --workspace
+      - run: npm ci && npm run build
+        working-directory: dkui
+
+  cli:
+    needs: quality
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: macos-latest
+            target: aarch64-apple-darwin
+            asset: devkit-aarch64-apple-darwin.tar.gz
+          - os: macos-13
+            target: x86_64-apple-darwin
+            asset: devkit-x86_64-apple-darwin.tar.gz
+          - os: ubuntu-latest
+            target: x86_64-unknown-linux-gnu
+            asset: devkit-x86_64-unknown-linux-gnu.tar.gz
+          - os: windows-latest
+            target: x86_64-pc-windows-msvc
+            asset: devkit-x86_64-pc-windows-msvc.zip
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: ${{ matrix.target }}
+      - run: cargo build -p dev-kit --release --target ${{ matrix.target }}
+      - name: Package Unix CLI
+        if: runner.os != 'Windows'
+        run: tar -C target/${{ matrix.target }}/release -czf ${{ matrix.asset }} devkit
+      - name: Package Windows CLI
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: Compress-Archive -Path target/${{ matrix.target }}/release/devkit.exe -DestinationPath ${{ matrix.asset }}
+      - uses: actions/upload-artifact@v4
+        with:
+          name: ${{ matrix.asset }}
+          path: ${{ matrix.asset }}
+
+  desktop:
+    needs: quality
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: macos-latest
+            target: aarch64-apple-darwin
+          - os: macos-13
+            target: x86_64-apple-darwin
+          - os: ubuntu-latest
+            target: x86_64-unknown-linux-gnu
+          - os: windows-latest
+            target: x86_64-pc-windows-msvc
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: ${{ matrix.target }}
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: dkui/package-lock.json
+      - name: Install Linux Tauri prerequisites
+        if: runner.os == 'Linux'
+        run: sudo apt-get update && sudo apt-get install -y libwebkit2gtk-4.1-dev libgtk-3-dev librsvg2-dev
+      - run: npm ci
+        working-directory: dkui
+      - run: ./scripts/prepare-tauri-binary.sh ${{ matrix.target }}
+      - run: npm run tauri build -- --target ${{ matrix.target }} --no-sign
+        working-directory: dkui
+      - uses: actions/upload-artifact@v4
+        with:
+          name: desktop-${{ matrix.target }}
+          path: dkui/src-tauri/target/${{ matrix.target }}/release/bundle/**
+          if-no-files-found: error
+
+  publish:
+    needs: [cli, desktop]
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          path: release-assets
+          merge-multiple: true
+      - name: Generate checksums
+        working-directory: release-assets
+        run: find . -type f -print0 | sort -z | xargs -0 sha256sum > SHA256SUMS.txt
+      - name: Create GitHub Release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh release create "$GITHUB_REF_NAME" release-assets --generate-notes --title "$GITHUB_REF_NAME"

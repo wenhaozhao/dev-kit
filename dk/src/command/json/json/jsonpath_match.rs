@@ -1,6 +1,7 @@
 use super::JsonpathMatch;
 use serde::Serialize;
 use serde_json::Value;
+use std::hash::{Hash, Hasher};
 use std::ops::Deref;
 
 #[derive(Debug, Clone, PartialEq, Eq, Ord, PartialOrd, Hash, Serialize)]
@@ -24,7 +25,7 @@ pub struct MatchKey {
     path: Jsonpath,
 }
 
-#[derive(Debug, Clone, Hash, Serialize)]
+#[derive(Debug, Clone, Serialize)]
 pub struct MatchVal {
     path: Jsonpath,
     val: Value,
@@ -37,6 +38,12 @@ impl PartialEq<Self> for MatchVal {
 }
 
 impl Eq for MatchVal {}
+
+impl Hash for MatchVal {
+    fn hash<H: Hasher>(&self, state: &mut H) {
+        self.path.hash(state);
+    }
+}
 
 impl Ord for MatchVal {
     fn cmp(&self, other: &Self) -> std::cmp::Ordering {
@@ -52,19 +59,26 @@ impl PartialOrd for MatchVal {
 
 impl From<&str> for JsonpathMatch {
     fn from(path: &str) -> Self {
-        Self::Key(MatchKey { path: Jsonpath(path.to_string()) })
+        Self::Key(MatchKey {
+            path: Jsonpath(path.to_string()),
+        })
     }
 }
 
 impl From<String> for JsonpathMatch {
     fn from(path: String) -> Self {
-        Self::Key(MatchKey { path: Jsonpath(path) })
+        Self::Key(MatchKey {
+            path: Jsonpath(path),
+        })
     }
 }
 
 impl From<(&str, &Value)> for JsonpathMatch {
     fn from((path, val): (&str, &Value)) -> Self {
-        Self::Val(MatchVal { path: Jsonpath(path.to_string()), val: val.to_owned() })
+        Self::Val(MatchVal {
+            path: Jsonpath(path.to_string()),
+            val: val.to_owned(),
+        })
     }
 }
 

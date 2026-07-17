@@ -2,8 +2,8 @@ use anyhow::anyhow;
 use derive_more::{Deref, Display};
 use itertools::Itertools;
 use lazy_static::lazy_static;
-use reqwest::header::{HeaderMap, HeaderName};
 use reqwest::Method;
+use reqwest::header::{HeaderMap, HeaderName};
 use std::fmt::{Display, Formatter};
 use std::str::FromStr;
 use std::sync::Arc;
@@ -26,25 +26,29 @@ lazy_static! {
 lazy_static! {
     static ref grammar_pattern_url: regex::Regex = {
         regex::RegexBuilder::new(r"^([A-Z]+)\s+(http[s]?.*)$")
-        .case_insensitive(true)
-        .build().unwrap()
+            .case_insensitive(true)
+            .build()
+            .unwrap()
     };
 }
 
 lazy_static! {
     static ref grammar_pattern_url_default: regex::Regex = {
         regex::RegexBuilder::new(r"^(http[s]?.*)$")
-        .case_insensitive(true)
-        .build().unwrap()
+            .case_insensitive(true)
+            .build()
+            .unwrap()
     };
 }
 
 lazy_static! {
-    static ref grammar_pattern_url_parts: regex::Regex = regex::Regex::new(r"^[\s\t]+(.+)$").unwrap();
+    static ref grammar_pattern_url_parts: regex::Regex =
+        regex::Regex::new(r"^[\s\t]+(.+)$").unwrap();
 }
 
 lazy_static! {
-    static ref grammar_pattern_header: regex::Regex = regex::Regex::new(r"^([\w\d-]+)\s*:\s*(.*)$").unwrap();
+    static ref grammar_pattern_header: regex::Regex =
+        regex::Regex::new(r"^([\w\d-]+)\s*:\s*(.*)$").unwrap();
 }
 
 impl JetBrainsHttp {
@@ -67,17 +71,16 @@ impl JetBrainsHttp {
                         ParseStep::Init => {
                             if line.trim().is_empty() {
                                 continue 'line_loop;
-                            } else if grammar_pattern_start.is_match(&line) {
+                            } else if grammar_pattern_start.is_match(line) {
                                 if buffer.method.is_some() {
                                     let buffer = mem::take(&mut buffer);
                                     buffers.push(buffer);
                                 }
                                 current_step = ParseStep::Start;
                                 continue;
-                            } else if grammar_pattern_url.is_match(&line) {
-                                current_step = ParseStep::Start;
-                                continue;
-                            }  else if grammar_pattern_url_default.is_match(&line) {
+                            } else if grammar_pattern_url.is_match(line)
+                                || grammar_pattern_url_default.is_match(line)
+                            {
                                 current_step = ParseStep::Start;
                                 continue;
                             } else {
@@ -87,17 +90,16 @@ impl JetBrainsHttp {
                         ParseStep::Start => {
                             if line.trim().is_empty() {
                                 continue 'line_loop;
-                            } else if grammar_pattern_start.is_match(&line) {
+                            } else if grammar_pattern_start.is_match(line) {
                                 if buffer.name.is_none() {
                                     buffer.name = Some(line.replace(COMMENT_SYMBOL, ""));
                                 }
                                 continue 'line_loop;
-                            } else if grammar_pattern_comments.is_match(&line) {
+                            } else if grammar_pattern_comments.is_match(line) {
                                 continue 'line_loop;
-                            } else if grammar_pattern_url.is_match(&line) {
-                                current_step = ParseStep::Url;
-                                continue;
-                            } else if grammar_pattern_url_default.is_match(&line) {
+                            } else if grammar_pattern_url.is_match(line)
+                                || grammar_pattern_url_default.is_match(line)
+                            {
                                 current_step = ParseStep::Url;
                                 continue;
                             } else {
@@ -108,30 +110,34 @@ impl JetBrainsHttp {
                             if line.trim().is_empty() {
                                 current_step = ParseStep::Body;
                                 continue 'line_loop;
-                            } else if grammar_pattern_start.is_match(&line) {
+                            } else if grammar_pattern_start.is_match(line) {
                                 current_step = ParseStep::Init;
                                 continue;
-                            } else if grammar_pattern_comments.is_match(&line) {
+                            } else if grammar_pattern_comments.is_match(line) {
                                 continue 'line_loop;
-                            } else if grammar_pattern_start.is_match(&line) {
+                            } else if grammar_pattern_start.is_match(line) {
                                 current_step = ParseStep::Init;
                                 continue;
-                            } else if let Some((_, [method, url])) = grammar_pattern_url.captures(&line).map(|it|
-                                it.extract()
-                            ) {
+                            } else if let Some((_, [method, url])) =
+                                grammar_pattern_url.captures(line).map(|it| it.extract())
+                            {
                                 buffer.method = Some(method.to_uppercase());
                                 buffer.url_parts.push(url.trim().to_string());
                                 continue 'line_loop;
-                            } else if let Some((_, [url])) = grammar_pattern_url_default.captures(&line).map(|it|
-                                it.extract()
-                            ) {
+                            } else if let Some((_, [url])) = grammar_pattern_url_default
+                                .captures(line)
+                                .map(|it| it.extract())
+                            {
                                 buffer.method = Some(Method::GET.to_string());
                                 buffer.url_parts.push(url.trim().to_string());
                                 continue 'line_loop;
-                            } else if let Some((_, [url_part])) = grammar_pattern_url_parts.captures(&line).map(|it| it.extract()) {
+                            } else if let Some((_, [url_part])) = grammar_pattern_url_parts
+                                .captures(line)
+                                .map(|it| it.extract())
+                            {
                                 buffer.url_parts.push(url_part.trim().to_string());
                                 continue 'line_loop;
-                            } else if grammar_pattern_header.is_match(&line) {
+                            } else if grammar_pattern_header.is_match(line) {
                                 current_step = ParseStep::Header;
                                 continue;
                             } else {
@@ -142,12 +148,14 @@ impl JetBrainsHttp {
                             if line.trim().is_empty() {
                                 current_step = ParseStep::Body;
                                 continue 'line_loop;
-                            } else if grammar_pattern_start.is_match(&line) {
+                            } else if grammar_pattern_start.is_match(line) {
                                 current_step = ParseStep::Init;
                                 continue;
-                            } else if grammar_pattern_comments.is_match(&line) {
+                            } else if grammar_pattern_comments.is_match(line) {
                                 continue 'line_loop;
-                            } else if let Some((_, [name, value])) = grammar_pattern_header.captures(&line).map(|it| it.extract()) {
+                            } else if let Some((_, [name, value])) =
+                                grammar_pattern_header.captures(line).map(|it| it.extract())
+                            {
                                 buffer.headers.push((name.to_string(), value.to_string()));
                                 current_step = ParseStep::Header;
                                 continue 'line_loop;
@@ -158,10 +166,10 @@ impl JetBrainsHttp {
                         ParseStep::Body => {
                             if line.trim().is_empty() {
                                 continue 'line_loop;
-                            } else if grammar_pattern_start.is_match(&line) {
+                            } else if grammar_pattern_start.is_match(line) {
                                 current_step = ParseStep::Init;
                                 continue;
-                            } else if grammar_pattern_comments.is_match(&line) {
+                            } else if grammar_pattern_comments.is_match(line) {
                                 continue 'line_loop;
                             } else {
                                 buffer.body.push(line.to_string());
@@ -177,11 +185,13 @@ impl JetBrainsHttp {
                 break;
             }
         }
-        let buffer = buffers.into_iter().next().ok_or(anyhow!("Not a valid input"))?;
+        let buffer = buffers
+            .into_iter()
+            .next()
+            .ok_or(anyhow!("Not a valid input"))?;
         Ok(JetBrainsHttp(Arc::new(buffer)))
     }
 }
-
 
 impl FromStr for JetBrainsHttp {
     type Err = anyhow::Error;
@@ -190,7 +200,6 @@ impl FromStr for JetBrainsHttp {
         Self::try_parse(s)
     }
 }
-
 
 #[derive(Debug, Default, Clone)]
 pub struct ParseBuffer {
@@ -215,9 +224,11 @@ impl TryFrom<&ParseBuffer> for Method {
     type Error = anyhow::Error;
 
     fn try_from(value: &ParseBuffer) -> Result<Self, Self::Error> {
-        Ok(value.method.as_ref().and_then(|it|
-            Method::from_str(it).ok()
-        ).unwrap_or(Method::GET))
+        Ok(value
+            .method
+            .as_ref()
+            .and_then(|it| Method::from_str(it).ok())
+            .unwrap_or(Method::GET))
     }
 }
 
@@ -236,10 +247,7 @@ impl TryFrom<&ParseBuffer> for HeaderMap_ {
     fn try_from(value: &ParseBuffer) -> Result<Self, Self::Error> {
         let mut headers = HeaderMap::new();
         for (k, v) in &value.headers {
-            headers.insert(
-                HeaderName::from_str(&k)?,
-                v.parse()?,
-            );
+            headers.insert(HeaderName::from_str(k)?, v.parse()?);
         }
         Ok(HeaderMap_(headers))
     }
@@ -247,11 +255,14 @@ impl TryFrom<&ParseBuffer> for HeaderMap_ {
 
 impl Display for HeaderMap_ {
     fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
-        self.iter().map(|(k, v)| {
-            let k = k.as_str();
-            let v = v.to_str().unwrap_or("");
-            format!("{}: {}", k, v)
-        }).join("\n").fmt(f)
+        self.iter()
+            .map(|(k, v)| {
+                let k = k.as_str();
+                let v = v.to_str().unwrap_or("");
+                format!("{}: {}", k, v)
+            })
+            .join("\n")
+            .fmt(f)
     }
 }
 
@@ -271,20 +282,20 @@ impl TryFrom<&ParseBuffer> for reqwest::Request {
 
 impl Display for ParseBuffer {
     fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
-        f.write_fmt(format_args!(r#"
+        f.write_fmt(format_args!(
+            r#"
 {} {}
 {}
 
 {}
         "#,
-                                 Method::try_from(self).map_err(|_| fmt::Error)?,
-                                 url::Url::try_from(self).map_err(|_| fmt::Error)?,
-                                 HeaderMap_::try_from(self).map_err(|_| fmt::Error)?,
-                                 self.body.join("\n")
+            Method::try_from(self).map_err(|_| fmt::Error)?,
+            url::Url::try_from(self).map_err(|_| fmt::Error)?,
+            HeaderMap_::try_from(self).map_err(|_| fmt::Error)?,
+            self.body.join("\n")
         ))
     }
 }
-
 
 #[cfg(test)]
 mod tests {

@@ -8,18 +8,22 @@ pub enum UriCommand {
     #[clap(about = "decode uri component, alias d", alias = "d")]
     Decode {
         #[arg(help = "uri component to decode", default_value = "")]
-        uri: Uri
+        uri: Uri,
     },
     #[clap(about = "encode uri component, alias e", alias = "e")]
     Encode {
         #[arg(help = "uri component to encode", default_value = "")]
-        uri: Uri
+        uri: Uri,
     },
     #[clap(about = "parse uri component, alias p", alias = "p")]
     Parse {
         #[arg(help = "uri component to encode", default_value = "")]
         uri: Uri,
-        #[arg(long, help = "component filter of uri: scheme, authority, host, port, path, query", value_delimiter = ',')]
+        #[arg(
+            long,
+            help = "component filter of uri: scheme, authority, host, port, path, query",
+            value_delimiter = ','
+        )]
         filter: Option<Vec<UriComponent>>,
     },
 }
@@ -44,9 +48,11 @@ impl super::Command for UriCommand {
                     match filter_len {
                         1 => {
                             if let UriComponentValue::Query(parts) = it {
-                                let string = parts.into_iter().map(|(_, v)|
-                                    v.to_string()
-                                ).next().unwrap_or_default();
+                                let string = parts
+                                    .into_values()
+                                    .map(|v| v.to_string())
+                                    .next()
+                                    .unwrap_or_default();
                                 println!("{}", string)
                             } else {
                                 println!("{}", it.string_value())
@@ -54,9 +60,10 @@ impl super::Command for UriCommand {
                         }
                         _ => {
                             if let UriComponentValue::Query(parts) = it {
-                                let parts = parts.into_iter().map(|(k, v)|
-                                    format!("   {}={}", k, v)
-                                ).join("\n");
+                                let parts = parts
+                                    .into_iter()
+                                    .map(|(k, v)| format!("   {}={}", k, v))
+                                    .join("\n");
                                 println!("query:\n{parts}")
                             } else {
                                 println!("{}: {}", it.name(), it.string_value())
@@ -77,6 +84,7 @@ pub enum Uri {
     HttpRequest(super::http_parser::HttpRequest),
 }
 
+#[allow(clippy::module_inception)]
 mod uri;
 
 #[derive(Debug, Clone, Display, Deserialize)]

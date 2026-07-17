@@ -1,14 +1,14 @@
+use crate::command::http_parser::HttpRequest;
+use crate::command::json::{Json, KeyPatternType, QueryType};
+use crate::command::read_stdin;
+use anyhow::{Context, anyhow};
+use lazy_static::lazy_static;
+use serde_json::Value;
 use std::fs;
 use std::path::PathBuf;
 use std::process::Command;
 use std::str::FromStr;
 use std::sync::Arc;
-use anyhow::anyhow;
-use lazy_static::lazy_static;
-use serde_json::Value;
-use crate::command::http_parser::HttpRequest;
-use crate::command::json::{Json, KeyPatternType, QueryType};
-use crate::command::read_stdin;
 
 impl TryFrom<&Json> for Arc<Value> {
     type Error = anyhow::Error;
@@ -16,26 +16,47 @@ impl TryFrom<&Json> for Arc<Value> {
     fn try_from(input: &Json) -> Result<Self, Self::Error> {
         let json = match input {
             Json::Cmd(input) | Json::String(input) => {
-                let json = serde_json::from_str::<Value>(&input).map_err(|err| {
-                    log::debug!("{}", err);
-                    anyhow!("Invalid json format")
-                })?;
+                let json = parse_json_or_jsonl(input)?;
                 Arc::new(json)
             }
             Json::Path(path) => {
-                let file = fs::File::open(&path)
-                    .map_err(|err| anyhow!("open file {} failed, {}", path.display(), err))?;
-                let json =
-                    serde_json::from_reader::<_, Value>(file).map_err(|err| {
-                        log::debug!("{}", err);
-                        anyhow!("Invalid json format")
-                    })?;
+                let input = fs::read_to_string(path)
+                    .with_context(|| format!("read file {} failed", path.display()))?;
+                let json = parse_json_or_jsonl(&input)?;
                 Arc::new(json)
             }
             Json::HttpRequest(http_request) => Arc::new(http_request.try_into()?),
             Json::JsonValue(val) => Arc::clone(val),
         };
         Ok(json)
+    }
+}
+
+/// Parses a JSON document, or a JSON Lines stream when the whole input is not JSON.
+///
+/// JSON Lines records are converted into a JSON array so existing JSONPath and query
+/// behaviour remains unchanged.
+pub fn parse_json_or_jsonl(input: &str) -> crate::Result<Value> {
+    match serde_json::from_str(input) {
+        Ok(value) => Ok(value),
+        Err(json_error) => {
+            let mut values = Vec::new();
+            for (index, line) in input.lines().enumerate() {
+                let line = line.trim();
+                if line.is_empty() {
+                    continue;
+                }
+                let value = serde_json::from_str(line)
+                    .map_err(|error| anyhow!("Invalid JSONL at line {}: {}", index + 1, error))?;
+                values.push(value);
+            }
+            if values.is_empty() && !input.trim().is_empty() {
+                log::debug!("{}", json_error);
+                Err(anyhow!("Invalid JSON format: {}", json_error))
+            } else {
+                Ok(Value::Array(values))
+            }
+        }
     }
 }
 
@@ -52,17 +73,17 @@ impl FromStr for Json {
     type Err = anyhow::Error;
 
     fn from_str(value: &str) -> Result<Self, Self::Err> {
-        if let Some(string) = read_stdin() {
-            if !string.is_empty() {
-                return Ok(Self::from_str(&string)?);
-            }
+        if let Some(string) = read_stdin()
+            && !string.is_empty()
+        {
+            return Self::from_str(&string);
         }
         if value.is_empty() {
             Err(anyhow!("Invalid input"))
         } else if let Ok(http_request) = HttpRequest::from_str(value) {
             Ok(Json::HttpRequest(http_request))
         } else if let Some(_cmd_path) = CMD_SPLIT_PATTERN
-            .captures(&value)
+            .captures(value)
             .map(|c| c.extract())
             .and_then(|(_, [cmd])| which::which(cmd).ok())
         {
@@ -115,7 +136,6 @@ failed to execute command: {}
     }
 }
 
-
 impl FromStr for QueryType {
     type Err = anyhow::Error;
 
@@ -123,10 +143,10 @@ impl FromStr for QueryType {
         let s = s.to_lowercase();
         match s.as_str() {
             "jsonpath" | "jp" => Ok(Self::JsonPath),
-            _ => {
-                Ok(Self::KeyPattern(KeyPatternType::from_str(s.as_str())
-                    .map_err(|err| anyhow!("Invalid query type: {}", err))?))
-            }
+            _ => Ok(Self::KeyPattern(
+                KeyPatternType::from_str(s.as_str())
+                    .map_err(|err| anyhow!("Invalid query type: {}", err))?,
+            )),
         }
     }
 }
@@ -141,7 +161,36 @@ impl FromStr for KeyPatternType {
             "suffix" | "s" => Ok(Self::Suffix),
             "contains" | "c" => Ok(Self::Contains),
             "regex" | "r" => Ok(Self::Regex),
-            _ => Err(anyhow!("Invalid key pattern type: {}", s))
+            _ => Err(anyhow!("Invalid key pattern type: {}", s)),
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::parse_json_or_jsonl;
+    use serde_json::json;
+
+    #[test]
+    fn parses_standard_json_without_changing_it() {
+        assert_eq!(
+            parse_json_or_jsonl(r#"{"name":"devkit"}"#).unwrap(),
+            json!({"name": "devkit"})
+        );
+    }
+
+    #[test]
+    fn parses_jsonl_records_into_an_array() {
+        let input = "{\"name\":\"first\"}\n\n2\ntrue\nnull\n\"last\"";
+        assert_eq!(
+            parse_json_or_jsonl(input).unwrap(),
+            json!([{"name": "first"}, 2, true, null, "last"]),
+        );
+    }
+
+    #[test]
+    fn reports_the_invalid_jsonl_line() {
+        let error = parse_json_or_jsonl("{\"valid\":true}\nnot-json\n{}").unwrap_err();
+        assert!(error.to_string().contains("line 2"));
     }
 }

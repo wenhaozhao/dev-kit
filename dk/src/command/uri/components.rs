@@ -14,16 +14,10 @@ impl FromStr for UriComponent {
             "host" => UriComponent::Host,
             "port" => UriComponent::Port,
             "path" => UriComponent::Path,
-            value => {
-                match &value[..1] {
-                    "?" => {
-                        UriComponent::Query(Some(QueryPartName::from_str(&value[1..])?))
-                    }
-                    _ => {
-                        UriComponent::Query(Some(QueryPartName::from_str(value)?))
-                    }
-                }
-            }
+            value => match &value[..1] {
+                "?" => UriComponent::Query(Some(QueryPartName::from_str(&value[1..])?)),
+                _ => UriComponent::Query(Some(QueryPartName::from_str(value)?)),
+            },
         })
     }
 }
@@ -43,12 +37,14 @@ impl UriComponentValue {
     pub fn string_value(&self) -> String {
         match self {
             UriComponentValue::Scheme(val) => val.to_string(),
-            UriComponentValue::Authority(val) => val.as_ref().map(|it|it.to_string()).unwrap_or_default(),
+            UriComponentValue::Authority(val) => {
+                val.as_ref().map(|it| it.to_string()).unwrap_or_default()
+            }
             UriComponentValue::Host(val) => val.to_string(),
             UriComponentValue::Port(val) => val.to_string(),
             UriComponentValue::Path(val) => val.to_string(),
             UriComponentValue::Query(val) => {
-                val.into_iter().map(|(k, v)| format!("{}={}", k, v)).join("&")
+                val.iter().map(|(k, v)| format!("{}={}", k, v)).join("&")
             }
         }
     }
@@ -56,13 +52,14 @@ impl UriComponentValue {
 
 impl QueryPartVal {
     pub fn concat(&self, other: &Self) -> Self {
-        let vec = vec![self.clone(), other.clone()].into_iter().flat_map(|it| {
-            match it {
+        let vec = vec![self.clone(), other.clone()]
+            .into_iter()
+            .flat_map(|it| match it {
                 QueryPartVal::Single(Some(val)) => vec![val],
                 QueryPartVal::Multi(vec) => vec,
-                _ => vec![]
-            }
-        }).collect_vec();
+                _ => vec![],
+            })
+            .collect_vec();
         Self::Multi(vec)
     }
 }
@@ -70,7 +67,9 @@ impl QueryPartVal {
 impl Display for QueryPartVal {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
         match self {
-            QueryPartVal::Single(string) => serde_json::to_string(string).unwrap_or_default().fmt(f),
+            QueryPartVal::Single(string) => {
+                serde_json::to_string(string).unwrap_or_default().fmt(f)
+            }
             QueryPartVal::Multi(arr) => serde_json::to_string(arr).unwrap_or_default().fmt(f),
         }
     }

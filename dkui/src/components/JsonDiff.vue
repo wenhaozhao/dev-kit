@@ -24,6 +24,10 @@ const jsonLeftQuerying = ref(false);
 const jsonRightQuerying = ref(false);
 const diffTool = ref("");
 const availableDiffTools = ref([]);
+const inlineDiffLines = ref([]);
+const contentTypes = ["auto", "json", "jsonl", "toml", "yaml", "rust", "javascript", "typescript", "java", "c", "cpp", "lua", "text"];
+const leftType = ref("auto");
+const rightType = ref("auto");
 const jsonKeys = ref([]);
 const selectedIndex = ref(-1);
 const showSuggestions = ref(false);
@@ -34,6 +38,14 @@ const queryContainer = ref(null);
 const leftTextarea = ref(null);
 const rightTextarea = ref(null);
 let isSyncing = false;
+
+function syncScroll(event, target) {
+  if (isSyncing || !target) return;
+  isSyncing = true;
+  target.scrollTop = event.target.scrollTop;
+  target.scrollLeft = event.target.scrollLeft;
+  requestAnimationFrame(() => { isSyncing = false; });
+}
 
 const { debounce } = useDebounce();
 
@@ -58,6 +70,10 @@ const parsedJsonRightOutput = computed(() => {
     return jsonRightOutput.value;
   }
 });
+
+const inlineDiffText = computed(() => inlineDiffLines.value
+  .map((line) => `${line.kind === 'insert' ? '+' : line.kind === 'delete' ? '-' : ' '} ${line.content}`)
+  .join("\n"));
 
 onMounted(async () => {
   try {
@@ -272,11 +288,37 @@ async function diffJson() {
     await invoke("jsondiff_diff_json", {
       left: jsonLeftInput.value,
       right: jsonRightInput.value,
+      leftType: leftType.value === "auto" ? null : leftType.value,
+      rightType: rightType.value === "auto" ? null : rightType.value,
       query: jsonQuery.value || null,
       diffTool: diffTool.value
     });
   } catch (e) {
     jsonLeftOutput.value = "Error: " + e;
+  }
+}
+
+async function showInlineDiff() {
+  try {
+    inlineDiffLines.value = await invoke("textdiff_lines", {
+      left: jsonLeftInput.value,
+      right: jsonRightInput.value,
+    });
+  } catch (e) {
+    jsonLeftOutput.value = "Error: " + e;
+  }
+}
+
+async function copyInlineDiff() {
+  await navigator.clipboard.writeText(inlineDiffText.value);
+}
+
+async function saveInlineDiff() {
+  const path = await save({
+    filters: [{ name: "Text", extensions: ["txt", "diff"] }],
+  });
+  if (path) {
+    await invoke("save_to_file", { path, content: inlineDiffText.value });
   }
 }
 
@@ -330,7 +372,10 @@ watch(() => props.initialQuery, debounce((newVal) => {
         @dragover="isDraggingLeft = true"
         @dragleave="isDraggingLeft = false"
         @drop="isDraggingLeft = false">
-        <textarea id="leftTextarea" ref="leftTextarea" v-model="jsonLeftInput" placeholder="Enter JSON (Left)..." rows="5"></textarea>
+        <textarea id="leftTextarea" ref="leftTextarea" v-model="jsonLeftInput" placeholder="Enter JSON (Left)..." rows="5" @scroll="syncScroll($event, rightTextarea)"></textarea>
+        <select v-model="leftType" class="content-type" aria-label="Left content type">
+          <option v-for="type in contentTypes" :key="type" :value="type">{{ type }}</option>
+        </select>
         <div class="textarea-actions">
           <button v-if="jsonLeftInput" class="action-button" @click="queryLeftJson(true)" title="Run" :disabled="jsonLeftQuerying">
             <svg v-if="!jsonLeftQuerying" viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
@@ -358,7 +403,10 @@ watch(() => props.initialQuery, debounce((newVal) => {
         @dragover="isDraggingRight = true"
         @dragleave="isDraggingRight = false"
         @drop="isDraggingRight = false">
-        <textarea id="rightTextarea" ref="rightTextarea" v-model="jsonRightInput" placeholder="Enter JSON (Right)..." rows="5"></textarea>
+        <textarea id="rightTextarea" ref="rightTextarea" v-model="jsonRightInput" placeholder="Enter JSON (Right)..." rows="5" @scroll="syncScroll($event, leftTextarea)"></textarea>
+        <select v-model="rightType" class="content-type" aria-label="Right content type">
+          <option v-for="type in contentTypes" :key="type" :value="type">{{ type }}</option>
+        </select>
         <div class="textarea-actions">
           <button v-if="jsonRightInput" class="action-button" @click="queryRightJson(true)" title="Run" :disabled="jsonRightQuerying">
             <svg v-if="!jsonRightQuerying" viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
@@ -389,6 +437,7 @@ watch(() => props.initialQuery, debounce((newVal) => {
         @focus="showSuggestions = true"
         @keydown="handleKeyDown" />
       <div class="diff-actions">
+        <button @click="showInlineDiff">Show Diff</button>
         <select v-model="diffTool" v-if="availableDiffTools.length > 0">
           <option v-for="tool in availableDiffTools" :key="tool" :value="tool">
             {{ tool }}
@@ -445,6 +494,18 @@ watch(() => props.initialQuery, debounce((newVal) => {
         />
       </div>
     </div>
+    <div v-if="inlineDiffLines.length" class="inline-diff" aria-label="Text diff result">
+      <div class="inline-diff-actions">
+        <button class="action-button" @click="copyInlineDiff" title="Copy diff">Copy</button>
+        <button class="action-button" @click="saveInlineDiff" title="Save diff">Save</button>
+      </div>
+      <div v-for="(line, index) in inlineDiffLines" :key="index" class="diff-line" :class="line.kind">
+        <span class="diff-line-number">{{ line.old_line || '' }}</span>
+        <span class="diff-line-number">{{ line.new_line || '' }}</span>
+        <span class="diff-marker">{{ line.kind === 'insert' ? '+' : line.kind === 'delete' ? '-' : ' ' }}</span>
+        <code>{{ line.content }}</code>
+      </div>
+    </div>
   </section>
 </template>
 
@@ -488,6 +549,15 @@ watch(() => props.initialQuery, debounce((newVal) => {
   display: flex;
   gap: 4px;
   z-index: 10;
+}
+
+.content-type {
+  position: absolute;
+  bottom: 8px;
+  left: 8px;
+  width: auto;
+  padding: 3px 6px;
+  font-size: 12px;
 }
 
 .action-button {
@@ -541,8 +611,46 @@ watch(() => props.initialQuery, debounce((newVal) => {
 
 .diff-actions {
   display: flex;
-  gap: 0;
+  gap: 4px;
 }
+
+.inline-diff {
+  position: relative;
+  max-height: 420px;
+  overflow: auto;
+  border: 1px solid #ddd;
+  border-radius: 4px;
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+}
+
+.inline-diff-actions {
+  position: sticky;
+  top: 0;
+  display: flex;
+  justify-content: flex-end;
+  gap: 4px;
+  padding: 4px;
+  background: inherit;
+  z-index: 1;
+}
+
+.diff-line {
+  display: grid;
+  grid-template-columns: 42px 42px 20px minmax(0, 1fr);
+  min-height: 20px;
+  white-space: pre;
+}
+
+.diff-line-number, .diff-marker {
+  padding: 0 4px;
+  color: #777;
+  text-align: right;
+  user-select: none;
+}
+
+.diff-line code { overflow-x: auto; }
+.diff-line.insert { background: #e6ffec; }
+.diff-line.delete { background: #ffebe9; }
 
 .diff-actions select {
   border-top-right-radius: 0;

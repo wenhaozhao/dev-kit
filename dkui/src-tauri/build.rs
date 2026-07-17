@@ -1,97 +1,13 @@
-use std::path::PathBuf;
-use std::{env, fs};
+use std::env;
 
-type Result<T> = anyhow::Result<T>;
-fn main() -> Result<()> {
-    println!("cargo:rerun-if-env-changed=CARGO_PKG_VERSION");
+fn main() {
+    let target = env::var("TARGET").expect("TARGET is not set");
+    let binary_name = if target.contains("windows") {
+        format!("devkit-{target}.exe")
+    } else {
+        format!("devkit-{target}")
+    };
 
-    let _ = update_package_json()?;
-    let _ = update_tauri_config_json()?;
-
-    let Workspace {
-        target_triple, devkit_bin, ..
-    } = get_workspace()?;
-    if target_triple.to_lowercase().ends_with("darwin") {
-        println!("cargo:rerun-if-changed={}", devkit_bin.display());
-        let dst_bin_path = {
-            let path = PathBuf::from(format!("binaries/devkit-{target_triple}"));
-            let parent = path.parent().expect(&format!("failed to get parent directory, path: {}", path.display()));
-            if !parent.exists() {
-                fs::create_dir_all(&parent).expect(&format!("failed to create directory: {}", parent.display()));
-            }
-            path
-        };
-        let _ = fs::copy(&devkit_bin, &dst_bin_path).expect(&format!("failed to copy devkit binary: {}", devkit_bin.display()));
-    }
+    println!("cargo:rerun-if-changed=binaries/{binary_name}");
     tauri_build::build();
-    Ok(())
-}
-
-fn update_package_json() -> Result<()> {
-    use serde_json::{
-        from_reader, to_string_pretty, Value,
-    };
-    let version = env::var("CARGO_PKG_VERSION")?;
-    let Ok(Value::Object(mut package_json)) = from_reader::<_, Value>(
-        fs::File::open("../package.json")?
-    )else {
-        return Err(anyhow::anyhow!("failed to parse ../package.json"));
-    };
-    let Some(Value::String(before_version)) = package_json.get("version")else {
-        return Err(anyhow::anyhow!("version not exist"));
-    };
-    if !before_version.eq_ignore_ascii_case(&version) {
-        let _ = package_json.insert(String::from("version"), Value::String(version));
-        fs::write("../package.json", to_string_pretty(&package_json)?)?;
-    }
-    Ok(())
-}
-
-fn update_tauri_config_json() -> Result<()> {
-    use serde_json::{
-        from_reader, to_string_pretty, Value,
-    };
-    let version = env::var("CARGO_PKG_VERSION")?;
-    let Ok(Value::Object(mut package_json)) = from_reader::<_, Value>(
-        fs::File::open("./tauri.conf.json")?
-    )else {
-        return Err(anyhow::anyhow!("failed to parse ./tauri.conf.json"));
-    };
-    let Some(Value::String(before_version)) = package_json.get("version")else {
-        return Err(anyhow::anyhow!("version not exist"));
-    };
-    if !before_version.eq_ignore_ascii_case(&version) {
-        let _ = package_json.insert(String::from("version"), Value::String(version));
-        fs::write("./tauri.conf.json", to_string_pretty(&package_json)?)?;
-    }
-    Ok(())
-}
-
-fn get_workspace() -> Result<Workspace> {
-    let target_triple = env::var("TARGET").expect("TARGET is not set");
-    let cargo_manifest_dir = env::var("CARGO_MANIFEST_DIR").expect("CARGO_MANIFEST_DIR is not set");
-    let cargo_manifest_dir = PathBuf::from(cargo_manifest_dir);
-    let project_path = cargo_manifest_dir.parent().and_then(|it| it.parent()).expect(
-        &format!("unexpected cargo_manifest_dir: {}", cargo_manifest_dir.display())
-    ).to_owned();
-    let _dkui_package_path = cargo_manifest_dir.parent().expect(
-        &format!("unexpected cargo_manifest_dir: {}", cargo_manifest_dir.display())
-    );
-    let target_path = project_path.join("target");
-    let devkit_bin = target_path.join("deployment").join(&target_triple).join("devkit");
-    Ok(Workspace {
-        target_triple,
-        project_path,
-        target_path,
-        devkit_bin,
-    })
-}
-
-struct Workspace {
-    target_triple: String,
-    #[allow(unused)]
-    project_path: PathBuf,
-    #[allow(unused)]
-    target_path: PathBuf,
-    devkit_bin: PathBuf,
 }

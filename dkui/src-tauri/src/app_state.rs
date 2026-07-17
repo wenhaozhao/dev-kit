@@ -10,12 +10,15 @@ pub struct AppState {
 
 impl AppState {
     pub fn init() -> Result<Self, String> {
-        let proj_dirs = ProjectDirs::from("vip", "mhlife", "devkit").ok_or(
-            "Failed to get project directories"
-        )?;
+        let proj_dirs = ProjectDirs::from("vip", "mhlife", "devkit")
+            .ok_or("Failed to get project directories")?;
         let jsonparser = Self::init_jsonparser(&proj_dirs)?;
         let jsondiff = JsonDiffState::init()?;
-        Ok(Self { proj_dirs, jsonparser, jsondiff })
+        Ok(Self {
+            proj_dirs,
+            jsonparser,
+            jsondiff,
+        })
     }
 }
 

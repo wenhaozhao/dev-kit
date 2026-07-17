@@ -1,0 +1,42 @@
+name: Update Homebrew Tap
+
+on:
+  release:
+    types: [published]
+
+permissions:
+  contents: read
+
+jobs:
+  update-formula:
+    if: startsWith(github.event.release.tag_name, 'v')
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Render formula from release checksums
+        env:
+          GH_TOKEN: ${{ github.token }}
+          RELEASE_TAG: ${{ github.event.release.tag_name }}
+        run: |
+          gh release download "$RELEASE_TAG" --pattern SHA256SUMS.txt
+          arm64_sha=$(awk '/devkit-aarch64-apple-darwin.tar.gz$/ {print $1}' SHA256SUMS.txt)
+          x86_64_sha=$(awk '/devkit-x86_64-apple-darwin.tar.gz$/ {print $1}' SHA256SUMS.txt)
+          test -n "$arm64_sha"
+          test -n "$x86_64_sha"
+          ./scripts/render-homebrew-formula.sh "${RELEASE_TAG#v}" "$arm64_sha" "$x86_64_sha" /tmp/devkit.rb
+      - name: Update configured tap repository
+        env:
+          TAP_REPOSITORY: ${{ vars.HOMEBREW_TAP_REPOSITORY }}
+          TAP_TOKEN: ${{ secrets.HOMEBREW_TAP_TOKEN }}
+        run: |
+          test -n "$TAP_REPOSITORY"
+          test -n "$TAP_TOKEN"
+          git clone "https://x-access-token:${TAP_TOKEN}@github.com/${TAP_REPOSITORY}.git" tap
+          mkdir -p tap/Formula
+          cp /tmp/devkit.rb tap/Formula/devkit.rb
+          cd tap
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add Formula/devkit.rb
+          git commit -m "devkit release"
+          git push

@@ -1,5 +1,5 @@
-use crate::command::{Command, StringInput};
 use crate::command::qrcode::generator::QrCodeImageVal;
+use crate::command::{Command, StringInput};
 use derive_more::{Deref, FromStr};
 use qrcode::Version;
 use std::ops::Deref;
@@ -56,8 +56,9 @@ pub struct QrContent(StringInput);
 #[derive(Debug, Copy, Clone, Deref)]
 pub struct QrEcLevel(qrcode::EcLevel);
 
-#[derive(Debug, Copy, Clone)]
+#[derive(Debug, Copy, Clone, Default)]
 pub enum QrVersion {
+    #[default]
     Auto,
     Version(Version),
 }

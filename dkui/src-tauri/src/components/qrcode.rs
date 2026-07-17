@@ -1,5 +1,5 @@
 use base64::Engine;
-use dev_kit::command::qrcode::{generator, OutputType, QrContent, QrEcLevel, QrVersion};
+use dev_kit::command::qrcode::{OutputType, QrContent, QrEcLevel, QrVersion, generator};
 use std::io::Read;
 use std::ops::Deref;
 use std::str::FromStr;
@@ -11,9 +11,9 @@ pub fn save_image_to_file(path: String, base64_content: String) -> Result<(), St
     } else {
         &base64_content
     };
-    let buffer = base64::engine::general_purpose::STANDARD.decode(base64_data).map_err(|e|
-        e.to_string()
-    )?;
+    let buffer = base64::engine::general_purpose::STANDARD
+        .decode(base64_data)
+        .map_err(|e| e.to_string())?;
     std::fs::write(&path, buffer).map_err(|e| e.to_string())
 }
 
@@ -49,12 +49,8 @@ pub fn generate_qrcode(
         .map(|s| OutputType::from_str(&s).unwrap_or(OutputType::Svg))
         .unwrap_or(OutputType::Svg);
 
-    let result = generator::generate(
-        &content,
-        &ec_level,
-        &version,
-        output_type,
-    ).map_err(|e| e.to_string())?;
+    let result = generator::generate(&content, &ec_level, &version, output_type)
+        .map_err(|e| e.to_string())?;
 
     let data = match result.deref() {
         generator::QrCodeImageVal::Svg(path) => {

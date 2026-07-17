@@ -1,19 +1,25 @@
+use crate::SharedAppState;
 use crate::components::json::jsonparser::JsonParserTabState;
 use crate::components::jsonparser::JsonParserTab;
-use crate::SharedAppState;
 use dev_kit::command::json::{DiffTool, JsonpathMatch, QueryType};
+use dev_kit::command::text::ContentType;
+use dev_kit::command::textdiff::{DiffLine, diff_lines};
 use itertools::Itertools;
 use std::str::FromStr;
 
-pub mod jsonparser;
 pub mod jsondiff;
+pub mod jsonparser;
 
 #[tauri::command]
 pub async fn jsonparser_init_tabs(
     state: tauri::State<'_, SharedAppState>,
 ) -> Result<Vec<JsonParserTab>, String> {
     let state = state.read().await;
-    let tabs = state.jsonparser.get_tabs().await.map_err(|e| e.to_string())?;
+    let tabs = state
+        .jsonparser
+        .get_tabs()
+        .await
+        .map_err(|e| e.to_string())?;
     Ok(tabs)
 }
 
@@ -46,12 +52,17 @@ pub async fn jsonparser_query_json(
     tab_id: String,
 ) -> Result<String, String> {
     let mut app_state = state.write().await;
-    let value = app_state.jsonparser.get_or_parse(&tab_id, &json, reload).await?;
-    let arr = value.query(
-        query.as_deref(), query_type.and_then(|s|
-            QueryType::from_str(&s).ok()
-        ), true,
-    ).map_err(|e| e.to_string())?;
+    let value = app_state
+        .jsonparser
+        .get_or_parse(&tab_id, &json, reload)
+        .await?;
+    let arr = value
+        .query(
+            query.as_deref(),
+            query_type.and_then(|s| QueryType::from_str(&s).ok()),
+            true,
+        )
+        .map_err(|e| e.to_string())?;
     Ok(arr)
 }
 
@@ -62,9 +73,10 @@ pub async fn jsonparser_search_json_paths(
     query: Option<String>,
 ) -> Result<Vec<JsonpathMatch>, String> {
     let mut app_state = state.write().await;
-    let array = app_state.jsonparser.search_paths(
-        &tab_id, query.as_deref().unwrap_or_default()
-    ).await?;
+    let array = app_state
+        .jsonparser
+        .search_paths(&tab_id, query.as_deref().unwrap_or_default())
+        .await?;
     Ok(array)
 }
 
@@ -78,11 +90,13 @@ pub async fn jsondiff_query_json(
 ) -> Result<String, String> {
     let app_state = state.write().await;
     let value = app_state.jsondiff.get_or_parse(&json, reload).await?;
-    let arr = value.query(
-        query.as_deref(), query_type.and_then(|s|
-            QueryType::from_str(&s).ok()
-        ), true,
-    ).map_err(|e| e.to_string())?;
+    let arr = value
+        .query(
+            query.as_deref(),
+            query_type.and_then(|s| QueryType::from_str(&s).ok()),
+            true,
+        )
+        .map_err(|e| e.to_string())?;
     Ok(arr)
 }
 
@@ -97,12 +111,8 @@ pub async fn jsondiff_search_json_paths(
     let value = app_state.jsondiff.get_or_parse(&json, false).await?;
     let query_type = query_type.and_then(|s| QueryType::from_str(&s).ok());
     match value.search_paths(query.as_deref(), query_type) {
-        Ok(arr) => {
-            Ok(arr.into_iter().map(|it| it.into()).collect_vec())
-        }
-        Err(err) => {
-            Err(err.to_string())
-        }
+        Ok(arr) => Ok(arr.into_iter().collect_vec()),
+        Err(err) => Err(err.to_string()),
     }
 }
 
@@ -118,15 +128,13 @@ pub async fn jsondiff_diff_json(
     let app_state = state.read().await;
     let left_val = app_state.jsondiff.get_or_parse(&left, false).await?;
     let right_val = app_state.jsondiff.get_or_parse(&right, false).await?;
-    let query_type = query_type.and_then(|s|
-        QueryType::from_str(&s).ok()
-    );
+    let query_type = query_type.and_then(|s| QueryType::from_str(&s).ok());
     let tool = if let Some(t) = diff_tool {
         DiffTool::from_str(&t).map_err(|e| e.to_string())?
     } else {
         DiffTool::default()
     };
-    let _ = left_val
+    left_val
         .diff(&right_val, query.as_deref(), query_type, Some(tool))
         .map_err(|e| e.to_string())?;
     Ok(())
@@ -139,4 +147,19 @@ pub fn get_available_diff_tools() -> Vec<String> {
         .filter(|t: &DiffTool| t.is_available())
         .map(|t| t.to_string())
         .collect()
+}
+
+#[tauri::command]
+pub fn textdiff_lines(
+    left: String,
+    right: String,
+    left_type: Option<String>,
+    right_type: Option<String>,
+) -> Vec<DiffLine> {
+    diff_lines(
+        &left,
+        &right,
+        left_type.and_then(|value| ContentType::from_str(&value).ok()),
+        right_type.and_then(|value| ContentType::from_str(&value).ok()),
+    )
 }
