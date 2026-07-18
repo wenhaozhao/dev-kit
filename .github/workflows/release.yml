@@ -99,12 +99,11 @@ jobs:
       - run: npm ci
         working-directory: dkui
       - run: ./scripts/prepare-tauri-binary.sh ${{ matrix.target }}
-      - run: npm run tauri build -- --target ${{ matrix.target }} --no-sign
-        working-directory: dkui
+      - run: npm --prefix dkui run tauri build -- --target ${{ matrix.target }} --no-sign
       - uses: actions/upload-artifact@v4
         with:
           name: desktop-${{ matrix.target }}
-          path: dkui/src-tauri/target/${{ matrix.target }}/release/bundle/**
+          path: target/${{ matrix.target }}/release/bundle/**
           if-no-files-found: error
 
   publish:
@@ -121,4 +120,6 @@ jobs:
       - name: Create GitHub Release
         env:
           GH_TOKEN: ${{ github.token }}
-        run: gh release create "$GITHUB_REF_NAME" release-assets --generate-notes --title "$GITHUB_REF_NAME"
+        run: |
+          gh release create "$GITHUB_REF_NAME" --generate-notes --title "$GITHUB_REF_NAME"
+          find release-assets -type f -exec gh release upload "$GITHUB_REF_NAME" --clobber {} +

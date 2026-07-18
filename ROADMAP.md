@@ -8,7 +8,13 @@
 - [x] CI, tests, release workflow, and Homebrew Formula automation
 - [ ] Validate a tag release and Homebrew installation
 
-## Next
+## v0.2.1 — Homebrew acceptance
+
+- [ ] Create the Tap and configure write credentials.
+- [ ] Validate Formula checksums against release assets.
+- [ ] Install and upgrade on Apple Silicon and Intel macOS.
+
+## Later
 
 - Improve large-text Diff virtualization and performance telemetry.
 - Add more formatter integrations where they remain optional and deterministic.
