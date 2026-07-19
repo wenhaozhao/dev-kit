@@ -2,7 +2,7 @@ use crate::command::json::{DiffTool, JetbrainsIDE};
 use anyhow::anyhow;
 use itertools::Itertools;
 use std::path::Path;
-use std::process::{exit, Command};
+use std::process::{Command, exit};
 use std::str::FromStr;
 use strum::IntoEnumIterator;
 use which::which;
@@ -15,20 +15,19 @@ impl FromStr for DiffTool {
         match s.as_str() {
             "zed" => Ok(DiffTool::Zed),
             "vscode" | "code" => Ok(DiffTool::VSCode),
-            val => JetbrainsIDE::iter().find(|it|
-                it.to_string().eq(val)
-            ).map(DiffTool::JetbrainsIDE).ok_or_else(||
-                anyhow!("invalid diff tool: {}", val)
-            )
+            val => JetbrainsIDE::iter()
+                .find(|it| it.to_string().eq(val))
+                .map(DiffTool::JetbrainsIDE)
+                .ok_or_else(|| anyhow!("invalid diff tool: {}", val)),
         }
     }
 }
 
 impl Default for DiffTool {
     fn default() -> Self {
-        let difftool = Self::list_available_diff_tools().into_iter()
-            .filter(|it| it.is_available())
-            .next();
+        let difftool = Self::list_available_diff_tools()
+            .into_iter()
+            .find(|it| it.is_available());
         if let Some(difftool) = difftool {
             difftool
         } else {
@@ -47,18 +46,23 @@ impl DiffTool {
         let right = right.as_ref();
         match self {
             DiffTool::JetbrainsIDE(ide) => {
-                let program = which(ide.to_string()).map_err(|_| anyhow!("JetbrainsIDE {} not found", ide))?;
+                let program = which(ide.to_string())
+                    .map_err(|_| anyhow!("JetbrainsIDE {} not found", ide))?;
                 let status = Command::new(program)
                     .arg("diff")
                     .arg(left.display().to_string())
                     .arg(right.display().to_string())
                     .status()
-                    .map_err(|err| anyhow!(
-r#"
+                    .map_err(|err| {
+                        anyhow!(
+                            r#"
 failed to execute idea diff {} {}
 error: {}"#,
-                        left.display(), right.display(), err
-                    ))?;
+                            left.display(),
+                            right.display(),
+                            err
+                        )
+                    })?;
                 if status.success() {
                     Ok(())
                 } else {
@@ -72,12 +76,16 @@ error: {}"#,
                     .arg(left.display().to_string())
                     .arg(right.display().to_string())
                     .status()
-                    .map_err(|err| anyhow!(
-r#"
+                    .map_err(|err| {
+                        anyhow!(
+                            r#"
 failed to execute zed --diff {} {}
 error: {}"#,
-                        left.display(), right.display(), err
-                    ))?;
+                            left.display(),
+                            right.display(),
+                            err
+                        )
+                    })?;
                 if status.success() {
                     Ok(())
                 } else {
@@ -85,26 +93,31 @@ error: {}"#,
                 }
             }
             &DiffTool::VSCode => {
-                let program = which("code").or_else(|_|
-                    which("vscode")
-                ).map_err(|_|
-                    anyhow!("code/vscode not found")
-                )?;
+                let program = which("code")
+                    .or_else(|_| which("vscode"))
+                    .map_err(|_| anyhow!("code/vscode not found"))?;
                 let status = Command::new(program)
                     .arg("--diff")
                     .arg(left.display().to_string())
                     .arg(right.display().to_string())
                     .status()
-                    .map_err(|err| anyhow!(
-r#"
+                    .map_err(|err| {
+                        anyhow!(
+                            r#"
 failed to execute code --diff {} {}
 error: {}"#,
-                        left.display(), right.display(), err
-                    ))?;
+                            left.display(),
+                            right.display(),
+                            err
+                        )
+                    })?;
                 if status.success() {
                     Ok(())
                 } else {
-                    Err(anyhow!("code --diff command failed with status: {}", status))
+                    Err(anyhow!(
+                        "code --diff command failed with status: {}",
+                        status
+                    ))
                 }
             }
         }
@@ -120,17 +133,26 @@ error: {}"#,
 
     pub fn how_to_install(&self) -> String {
         match self {
-            DiffTool::JetbrainsIDE(ide) => format!("https://www.jetbrains.com/help/{}/working-with-the-ide-features-from-command-line.html", ide.to_string()),
+            DiffTool::JetbrainsIDE(ide) => format!(
+                "https://www.jetbrains.com/help/{}/working-with-the-ide-features-from-command-line.html",
+                ide
+            ),
             DiffTool::Zed => "https://zed.dev/docs/command-line-interface".to_string(),
-            DiffTool::VSCode => "https://code.visualstudio.com/docs/configure/command-line".to_string(),
+            DiffTool::VSCode => {
+                "https://code.visualstudio.com/docs/configure/command-line".to_string()
+            }
         }
     }
 
     pub fn list_available_diff_tools() -> Vec<DiffTool> {
         vec![
-            JetbrainsIDE::iter().map(|it| Self::JetbrainsIDE(it)).collect_vec(),
-            vec![DiffTool::Zed, DiffTool::VSCode]
-        ].into_iter().flatten().filter(|it| it.is_available()).collect_vec()
+            JetbrainsIDE::iter().map(Self::JetbrainsIDE).collect_vec(),
+            vec![DiffTool::Zed, DiffTool::VSCode],
+        ]
+        .into_iter()
+        .flatten()
+        .filter(|it| it.is_available())
+        .collect_vec()
     }
 }
 

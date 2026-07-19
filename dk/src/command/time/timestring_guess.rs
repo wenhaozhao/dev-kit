@@ -34,9 +34,7 @@ fn parse_from_rfc2822(val: &str) -> Option<chrono::DateTime<chrono::Utc>> {
 
 fn guess_from_known_formats(val: &str) -> Option<chrono::DateTime<chrono::Utc>> {
     match dateparser::parse(val) {
-        Ok(utc_dt) => {
-            Some(utc_dt)
-        }
+        Ok(utc_dt) => Some(utc_dt),
         Err(err) => {
             log::debug!("guess time {val} failed, err: {err:?}");
             None

@@ -110,6 +110,28 @@ const parsedJsonOutput = computed(() => {
   }
 });
 
+const inputFormat = computed(() => {
+  const input = activeTab.value?.jsonInput?.trim();
+  if (!input) return "";
+  try {
+    JSON.parse(input);
+    return "JSON";
+  } catch (_) {
+    const records = input.split(/\r?\n/).filter((line) => line.trim());
+    if (records.length > 0 && records.every((line) => {
+      try {
+        JSON.parse(line);
+        return true;
+      } catch (_) {
+        return false;
+      }
+    })) {
+      return "JSONL";
+    }
+    return "Invalid JSON/JSONL";
+  }
+});
+
 function scrollTabs(direction) {
   if (!tabsScrollContainer.value) return;
   const scrollAmount = 200;
@@ -402,7 +424,10 @@ async function copyOutputToClipboard(e) {
     </div>
     <div class="json-inputs">
       <div v-if="activeTab" class="textarea-container" :class="{ dragging: isDragging }">
-        <textarea v-model="activeTab.jsonInput" placeholder="Enter JSON..." rows="5"></textarea>
+        <textarea v-model="activeTab.jsonInput" placeholder="Enter JSON or JSONL..." rows="5"></textarea>
+        <span v-if="inputFormat" class="format-badge" :class="{ invalid: inputFormat.startsWith('Invalid') }">
+          {{ inputFormat }}
+        </span>
         <div class="textarea-actions">
           <button v-if="activeTab.jsonInput" class="action-button" @click="queryJson(true)" title="Run" :disabled="activeTab.jsonQuerying">
             <svg v-if="!activeTab.jsonQuerying" viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
@@ -667,6 +692,22 @@ textarea {
   z-index: 10;
 }
 
+.format-badge {
+  position: absolute;
+  bottom: 8px;
+  right: 8px;
+  padding: 2px 6px;
+  border-radius: 4px;
+  background: #e6f4ea;
+  color: #137333;
+  font-size: 12px;
+}
+
+.format-badge.invalid {
+  background: #fce8e6;
+  color: #c5221f;
+}
+
 .action-button {
   padding: 4px;
   background: rgba(0, 0, 0, 0.05);
@@ -802,6 +843,16 @@ button:hover {
 }
 :root.dark-mode .textarea-container.dragging textarea {
   background-color: rgba(0, 122, 255, 0.1);
+}
+
+:root.dark-mode .format-badge {
+  background: #214a30;
+  color: #b7e1c0;
+}
+
+:root.dark-mode .format-badge.invalid {
+  background: #5a2522;
+  color: #f6aea9;
 }
 :root.dark-mode .tabs-header {
   border-bottom-color: #444;

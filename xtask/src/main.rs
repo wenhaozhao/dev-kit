@@ -2,9 +2,9 @@ use clap::Parser;
 use derive_more::Display;
 use itertools::Itertools;
 use os_xtask_utils::{Cargo, CommandExt};
-use std::{env, fs};
 use std::path::{Path, PathBuf};
 use std::str::FromStr;
+use std::{env, fs};
 use strum::{EnumIter, IntoEnumIterator};
 
 #[derive(clap::Parser)]
@@ -37,9 +37,9 @@ impl FromStr for BuildTarget {
     type Err = String;
 
     fn from_str(s: &str) -> Result<Self, Self::Err> {
-        BuildTarget::iter().find_or_first(|&it|
-            it.to_string().eq_ignore_ascii_case(s)
-        ).ok_or_else(|| format!("target {} is not supported", s))
+        BuildTarget::iter()
+            .find_or_first(|&it| it.to_string().eq_ignore_ascii_case(s))
+            .ok_or_else(|| format!("target {} is not supported", s))
     }
 }
 
@@ -52,9 +52,7 @@ impl BuildTarget {
             Self::Aarch64AppleDarwin | Self::X8664AppleDarwin | Self::X8664UnknownLinuxGnu => {
                 target_path.join(BIN_NAME)
             }
-            BuildTarget::X8664PcWindowsGnu => {
-                target_path.join(format!("{}.exe", BIN_NAME))
-            }
+            BuildTarget::X8664PcWindowsGnu => target_path.join(format!("{}.exe", BIN_NAME)),
         }
     }
 
@@ -67,12 +65,14 @@ fn main() {
     let project_root = project_root();
     let BuildDirs {
         project_root: _,
-        target_path, deployment_path,
+        target_path,
+        deployment_path,
     } = prepare_build_dirs(&project_root);
 
     let Cli {
         update_crates,
-        features, no_default_features,
+        features,
+        no_default_features,
         target,
         ..
     } = Cli::parse();
@@ -85,29 +85,39 @@ fn main() {
         BuildTarget::default_targets().to_vec()
     };
     for target in targets {
-        println!("cargo build --target {} --release", target.to_string());
-        Cargo::build().conditional(features.is_some(), |cargo| {
-            cargo.features(
-                !no_default_features,
-                features.as_ref().unwrap(),
-            );
-        }).release().conditional(true, |cargo| {
-            cargo.target(target.to_string());
-        }).invoke();
+        println!("cargo build --target {} --release", target);
+        Cargo::build()
+            .conditional(features.is_some(), |cargo| {
+                cargo.features(!no_default_features, features.as_ref().unwrap());
+            })
+            .release()
+            .conditional(true, |cargo| {
+                cargo.target(target.to_string());
+            })
+            .invoke();
         let bin_path = target.bin_path(&target_path);
         let deployment_path = deployment_path.join(target.to_string());
         if deployment_path.exists() {
-            fs::remove_dir_all(&deployment_path).expect(
-                &format!("failed to remove existing deployment path, path: {}", deployment_path.display())
-            )
+            fs::remove_dir_all(&deployment_path).unwrap_or_else(|_| {
+                panic!(
+                    "failed to remove existing deployment path, path: {}",
+                    deployment_path.display()
+                )
+            })
         }
-        fs::create_dir_all(&deployment_path).expect(
-            &format!("failed to create deployment path, path: {}", deployment_path.display())
-        );
-        fs::copy(&bin_path, deployment_path.join("devkit")).expect(
-            &format!("failed to copy binary, path: {}", bin_path.display())
-        );
-        fs::copy(project_root.join("README.md"), deployment_path.join("README.md")).expect("failed to copy README.md");
+        fs::create_dir_all(&deployment_path).unwrap_or_else(|_| {
+            panic!(
+                "failed to create deployment path, path: {}",
+                deployment_path.display()
+            )
+        });
+        fs::copy(&bin_path, deployment_path.join("devkit"))
+            .unwrap_or_else(|_| panic!("failed to copy binary, path: {}", bin_path.display()));
+        fs::copy(
+            project_root.join("README.md"),
+            deployment_path.join("README.md"),
+        )
+        .expect("failed to copy README.md");
     }
 }
 
@@ -122,13 +132,19 @@ fn prepare_build_dirs<P: AsRef<Path>>(project_root: P) -> BuildDirs {
     let target_path = project_root.join("target");
     let deployment_path = target_path.join("deployment");
     if deployment_path.exists() {
-        fs::remove_dir_all(&deployment_path).expect(
-            &format!("failed to remove existing deployment path: {}", deployment_path.display())
-        );
+        fs::remove_dir_all(&deployment_path).unwrap_or_else(|_| {
+            panic!(
+                "failed to remove existing deployment path: {}",
+                deployment_path.display()
+            )
+        });
     }
-    fs::create_dir_all(&deployment_path).expect(
-        &format!("failed to create deployment path: {}", deployment_path.display())
-    );
+    fs::create_dir_all(&deployment_path).unwrap_or_else(|_| {
+        panic!(
+            "failed to create deployment path: {}",
+            deployment_path.display()
+        )
+    });
     BuildDirs {
         project_root: project_root.to_owned(),
         target_path,
@@ -138,8 +154,11 @@ fn prepare_build_dirs<P: AsRef<Path>>(project_root: P) -> BuildDirs {
 fn project_root() -> PathBuf {
     let cargo_manifest_dir = env::var("CARGO_MANIFEST_DIR").expect("CARGO_MANIFEST_DIR is not set");
     let cargo_manifest_dir = PathBuf::from(cargo_manifest_dir);
-    let project = cargo_manifest_dir.parent().expect(
-        &format!("unexpected cargo_manifest_dir: {}", cargo_manifest_dir.display())
-    );
+    let project = cargo_manifest_dir.parent().unwrap_or_else(|| {
+        panic!(
+            "unexpected cargo_manifest_dir: {}",
+            cargo_manifest_dir.display()
+        )
+    });
     PathBuf::from(project)
 }

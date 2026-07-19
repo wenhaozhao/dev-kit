@@ -17,7 +17,6 @@ fn save_to_file(path: String, content: String) -> Result<(), String> {
     fs::write(&path, content).map_err(|e| e.to_string())
 }
 
-
 #[derive(Clone, Deref)]
 struct SharedAppState(Arc<RwLock<AppState>>);
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
@@ -27,8 +26,15 @@ pub fn run() {
             let logdir = app_state.proj_dirs.data_local_dir().join("logs");
             let _ = fs::create_dir_all(&logdir);
             let logfile_path = logdir.join("stdout.log");
-            let logfile = Box::new(fs::File::options().create(true).append(true).open(&logfile_path)
-                .expect(&format!("Failed to open stdout log file: {}", logfile_path.display())));
+            let logfile = Box::new(
+                fs::File::options()
+                    .create(true)
+                    .append(true)
+                    .open(&logfile_path)
+                    .unwrap_or_else(|_| {
+                        panic!("Failed to open stdout log file: {}", logfile_path.display())
+                    }),
+            );
             env_logger::Builder::from_default_env()
                 .target(env_logger::Target::Pipe(logfile))
                 .init();
@@ -65,6 +71,7 @@ fn tauri_init(app_state: AppState) -> Result<(), String> {
             jsondiff_query_json,
             jsondiff_search_json_paths,
             jsondiff_diff_json,
+            textdiff_lines,
             get_available_diff_tools,
             decode_uri,
             encode_uri,
@@ -81,9 +88,6 @@ fn tauri_init(app_state: AppState) -> Result<(), String> {
             log::info!("Tauri application started.");
             Ok(())
         }
-        Err(err) => {
-            Err(format!("Error while running tauri application: {}", err))
-        }
+        Err(err) => Err(format!("Error while running tauri application: {}", err)),
     }
 }
-

@@ -4,6 +4,12 @@
 
 A collection of utilities and tools for development.
 
+## v0.2.0 highlights
+
+- Paste JSONL anywhere JSON is accepted; it is converted to a queryable JSON Array.
+- Compare JSON, code, configuration, and ordinary text in the desktop app without an external Diff tool.
+- Use automatic content detection or select a different type for each side of a comparison.
+
 ## Features
 
 ### 1. URI Tools
@@ -180,6 +186,16 @@ Generate QR codes from text or URLs. Supports alias `qr`.
 
 ## Installation
 
+### Homebrew (after the v0.2.0 release)
+
+```shell
+brew tap wenhaozhao/dev-kit
+brew install devkit
+devkit --version
+```
+
+### Cargo
+
 ```shell
 cargo install --path ./dk
 ```
@@ -207,4 +223,3 @@ Add `%USERPROFILE%\.cargo\bin` to your `Path` environment variable via the Syste
 ```shell
 devkit --help
 ```
-

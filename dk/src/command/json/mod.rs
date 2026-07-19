@@ -9,11 +9,18 @@ use strum::EnumIter;
 pub enum JsonCommand {
     #[clap(about = "json format, alias 'beauty(b)/query(q)/search(s)/format(f)'", aliases = ["b", "query", "q", "search", "s", "format", "f"])]
     Beauty {
-        #[arg(help = "json input, support string, file-path, url, cmd", default_value = "")]
+        #[arg(
+            help = "json input, support string, file-path, url, cmd",
+            default_value = ""
+        )]
         json: Json,
         #[arg(short, long, help = "extract content using jsonpath/key/value pattern")]
         query: Option<String>,
-        #[arg(long, help = "json query type, alias `qt`, jsonpath(jp)/prefix(p)/suffix(s)/contains(c)/regex(r), and will auto detect if not set", alias = "qt")]
+        #[arg(
+            long,
+            help = "json query type, alias `qt`, jsonpath(jp)/prefix(p)/suffix(s)/contains(c)/regex(r), and will auto detect if not set",
+            alias = "qt"
+        )]
         query_type: Option<QueryType>,
         #[arg(long, help = "beauty output", alias = "format", default_value = "true")]
         beauty: bool,
@@ -22,15 +29,29 @@ pub enum JsonCommand {
     },
     #[clap(about = "json diff with left and right, alias 'd'", aliases=["d"])]
     Diff {
-        #[arg(help = "json input, support string, file-path, url, cmd", default_value = "")]
+        #[arg(
+            help = "json input, support string, file-path, url, cmd",
+            default_value = ""
+        )]
         left: Json,
-        #[arg(help = "json input, support string, file-path, url, cmd", default_value = "")]
+        #[arg(
+            help = "json input, support string, file-path, url, cmd",
+            default_value = ""
+        )]
         right: Json,
         #[arg(short, long, help = "extract content using jsonpath/key/value pattern")]
         query: Option<String>,
-        #[arg(long, help = "json query type, alias `qt`, jsonpath(jp)/prefix(p)/suffix(s)/contains(c)/regex(r), and will auto detect if not set", alias = "qt")]
+        #[arg(
+            long,
+            help = "json query type, alias `qt`, jsonpath(jp)/prefix(p)/suffix(s)/contains(c)/regex(r), and will auto detect if not set",
+            alias = "qt"
+        )]
         query_type: Option<QueryType>,
-        #[arg(long, help = "diff tool to use, alias dt, support idea/zed/vscode, and will auto detect if not set", alias = "dt")]
+        #[arg(
+            long,
+            help = "diff tool to use, alias dt, support idea/zed/vscode, and will auto detect if not set",
+            alias = "dt"
+        )]
         diff_tool: Option<DiffTool>,
     },
 }
@@ -38,25 +59,37 @@ pub enum JsonCommand {
 impl super::Command for JsonCommand {
     fn run(&self) -> crate::Result<()> {
         match self {
-            JsonCommand::Beauty { json, query, query_type, beauty, file } => {
+            JsonCommand::Beauty {
+                json,
+                query,
+                query_type,
+                beauty,
+                file,
+            } => {
                 let content = json.query(query.as_deref(), *query_type, *beauty)?;
                 if let Some(file) = file {
-                    fs::write(&file, content)?;
+                    fs::write(file, content)?;
                     println!("write to {}", file.display());
                 } else {
                     println!("{content}");
                 }
                 Ok(())
             }
-            JsonCommand::Diff { left, right, query, query_type, diff_tool } => {
-                let _ = left.diff(right, query.as_deref(), *query_type, diff_tool.map(|it| it))?;
+            JsonCommand::Diff {
+                left,
+                right,
+                query,
+                query_type,
+                diff_tool,
+            } => {
+                left.diff(right, query.as_deref(), *query_type, diff_tool.map(|it| it))?;
                 Ok(())
             }
         }
     }
 }
 
-#[derive(Debug, Clone, Display, )]
+#[derive(Debug, Clone, Display)]
 pub enum Json {
     #[display("{_0}")]
     Cmd(String),
@@ -91,9 +124,11 @@ pub enum KeyPatternType {
     Regex,
 }
 
-mod type_;
+#[allow(clippy::module_inception)]
 mod json;
+mod type_;
 pub use json::JsonpathMatch;
+pub use type_::parse_json_or_jsonl;
 
 #[derive(Debug, Copy, Clone, Display, EnumIter)]
 pub enum DiffTool {

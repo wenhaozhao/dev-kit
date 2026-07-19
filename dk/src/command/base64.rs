@@ -37,15 +37,24 @@ lazy_static::lazy_static! {
     static ref REGEX_0: regex::Regex = regex::Regex::from_str(r#"^data:((\w+)/(\w+));base64,(.+)$"#).unwrap();
 }
 
-pub fn decode(input: &str, url_safe: bool, no_pad: bool) -> crate::Result<(Vec<u8>,Option<mime::Mime>)> {
-    let (text, mime) = if let Some((_,[mime, _type, _sub_type, content]))=REGEX_0.captures(input).map(|it|it.extract()){
+pub fn decode(
+    input: &str,
+    url_safe: bool,
+    no_pad: bool,
+) -> crate::Result<(Vec<u8>, Option<mime::Mime>)> {
+    let (text, mime) = if let Some((_, [mime, _type, _sub_type, content])) =
+        REGEX_0.captures(input).map(|it| it.extract())
+    {
         let mime: Option<mime::Mime> = mime.parse().ok();
 
         (content.to_string(), mime)
-    } else if let Some(input) = PathBuf::from_str(input).ok().and_then(|p| fs::read_to_string(p).ok()){
-        (input,None)
-    }else{
-        (input.to_string(),None)
+    } else if let Some(input) = PathBuf::from_str(input)
+        .ok()
+        .and_then(|p| fs::read_to_string(p).ok())
+    {
+        (input, None)
+    } else {
+        (input.to_string(), None)
     };
 
     let buf = if url_safe {
@@ -60,13 +69,16 @@ pub fn decode(input: &str, url_safe: bool, no_pad: bool) -> crate::Result<(Vec<u
         } else {
             base64::prelude::BASE64_STANDARD.decode(text.as_bytes())
         }
-    }.map_err(|e| anyhow::anyhow!("base64 encode failed: {}", e))?;
-   let mime = if let Some(mime) = mime{
+    }
+    .map_err(|e| anyhow::anyhow!("base64 encode failed: {}", e))?;
+    let mime = if let Some(mime) = mime {
         Some(mime)
-    }else{
-       image::guess_format(&buf).ok().and_then(|it| it.to_mime_type().parse().ok())
+    } else {
+        image::guess_format(&buf)
+            .ok()
+            .and_then(|it| it.to_mime_type().parse().ok())
     };
-    Ok((buf,mime))
+    Ok((buf, mime))
 }
 
 pub fn encode(input: &str, url_safe: bool, no_pad: bool) -> crate::Result<String> {
@@ -99,34 +111,47 @@ pub enum Base64Val {
 impl super::Command for Base64Command {
     fn run(&self) -> crate::Result<()> {
         match self {
-            Self::Decode { input, url_safe, no_pad, raw_output, file } => {
-                let (data, _mime) = decode(&input, *url_safe, *no_pad)?;
+            Self::Decode {
+                input,
+                url_safe,
+                no_pad,
+                raw_output,
+                file,
+            } => {
+                let (data, _mime) = decode(input, *url_safe, *no_pad)?;
                 match (*raw_output, file) {
                     (false, None) => {
                         let text = String::from_utf8_lossy(&data);
                         println!("{}", text);
                     }
                     (true, None) => {
-                        let text = data.chunks(8).flatten().map(|it| {
-                            format!("{:02x} ", *it)
-                        }).join("\n");
+                        let text = data
+                            .chunks(8)
+                            .flatten()
+                            .map(|it| format!("{:02x} ", *it))
+                            .join("\n");
                         println!("{}", text);
                     }
                     (false, Some(file)) => {
                         let text = String::from_utf8_lossy(&data).to_string();
-                        let _ = std::fs::write(file, text)?;
+                        std::fs::write(file, text)?;
                         println!("write to {}", file.display())
                     }
                     (true, Some(file)) => {
-                        let _ = std::fs::write(file, data)?;
+                        std::fs::write(file, data)?;
                         println!("write to {}", file.display())
                     }
                 }
             }
-            Self::Encode { input, url_safe, no_pad, file } => {
-                let text = encode(&input, *url_safe, *no_pad)?;
+            Self::Encode {
+                input,
+                url_safe,
+                no_pad,
+                file,
+            } => {
+                let text = encode(input, *url_safe, *no_pad)?;
                 if let Some(file) = file {
-                    let _ = std::fs::write(file, text)?;
+                    std::fs::write(file, text)?;
                     println!("write to {}", file.display())
                 } else {
                     println!("{}", text);
@@ -136,5 +161,3 @@ impl super::Command for Base64Command {
         Ok(())
     }
 }
-
-
