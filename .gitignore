@@ -35,5 +35,5 @@ node_modules/
 dkui/src-tauri/gen
 dkui/src-tauri/binaries/
 package-lock.json
+!dkui/package-lock.json
 .vite
-
