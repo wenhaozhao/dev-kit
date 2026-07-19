@@ -47,9 +47,8 @@
 | T07 | JSON Diff 升级为通用文本 Diff | Done | T05, T06 | JSON、代码与普通文本均可在应用内比较 |
 | T08 | 增加应用内文本 Diff UI | Done | T07 | 行级高亮、滚动同步、复制、保存与外部入口可用 |
 | T09 | 补齐单元测试与集成测试 | Done | T03, T06, T07 | 核心单测与离线集成测试稳定通过 |
-| T10 | 建立 GitHub Release | In Progress | T01, T02, T09 | 开始准备 tag 发布与校验资产工作流 |
-| T10 | 建立 GitHub Release | Planned | T01, T02, T09 | tag 可生成跨平台 Release |
-| T11 | 增加 Homebrew Tap | In Progress | T10 | Formula 模板与自动更新流程已就绪，待创建 Tap 并验证安装 |
+| T10 | 建立 GitHub Release | Review | T01, T02, T09 | 发布工作流、跨平台资产与校验配置已就绪；PR #2 CI 全绿，待合并后用版本 tag 验证 |
+| T11 | 增加 Homebrew Tap | Planned | T10 | 作为 v0.2.1 验收项：Formula 模板与自动更新流程已就绪，待创建 Tap 并验证安装 |
 | T12 | 完成文档、官网和正式发布 | Planned | T08, T10, T11 | v0.2.0 可正式发布 |
 
 ## 4. 详细执行任务
