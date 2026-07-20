@@ -105,7 +105,11 @@ jobs:
       - uses: actions/upload-artifact@v4
         with:
           name: desktop-${{ matrix.target }}
-          path: target/${{ matrix.target }}/release/bundle/**
+          path: |
+            target/${{ matrix.target }}/release/bundle/dmg/*.dmg
+            target/${{ matrix.target }}/release/bundle/appimage/*.AppImage
+            target/${{ matrix.target }}/release/bundle/deb/*.deb
+            target/${{ matrix.target }}/release/bundle/nsis/*-setup.exe
           if-no-files-found: error
 
   publish:
@@ -119,10 +123,10 @@ jobs:
           merge-multiple: true
       - name: Generate checksums
         working-directory: release-assets
-        run: find . -type f -print0 | sort -z | xargs -0 sha256sum > SHA256SUMS.txt
+        run: find . -maxdepth 1 -type f -print0 | sort -z | xargs -0 sha256sum > SHA256SUMS.txt
       - name: Create GitHub Release
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
           gh release create "$GITHUB_REF_NAME" --generate-notes --title "$GITHUB_REF_NAME"
-          find release-assets -type f -exec gh release upload "$GITHUB_REF_NAME" --clobber {} +
+          find release-assets -maxdepth 1 -type f -exec gh release upload "$GITHUB_REF_NAME" --clobber {} +
