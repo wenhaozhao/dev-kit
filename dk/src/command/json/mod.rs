@@ -99,10 +99,15 @@ pub enum Json {
     Path(PathBuf),
     #[display("{_0}")]
     String(String),
+    #[display("{_0}")]
+    Jsonl(String),
     #[display("{}", _0.to_string())]
     JsonValue(Arc<serde_json::Value>),
 }
 
+/// The input kind recognized by the JSON command before the content is resolved.
+/// This is intentionally separate from `serde_json::Value`: source expressions
+/// (commands, files and HTTP requests) are valid JSON parser inputs too.
 #[derive(Debug, Clone, Copy)]
 pub enum QueryType {
     JsonPath,

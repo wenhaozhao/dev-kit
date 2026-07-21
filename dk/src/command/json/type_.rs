@@ -15,7 +15,7 @@ impl TryFrom<&Json> for Arc<Value> {
 
     fn try_from(input: &Json) -> Result<Self, Self::Error> {
         let json = match input {
-            Json::Cmd(input) | Json::String(input) => {
+            Json::Cmd(input) | Json::String(input) | Json::Jsonl(input) => {
                 let json = parse_json_or_jsonl(input)?;
                 Arc::new(json)
             }

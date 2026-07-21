@@ -30,6 +30,7 @@ async function invoke_jsonparser_init_tabs() {
         jsonOutput: resp.json_output || "",
         jsonQuery: resp.json_query || "",
         jsonQuerying: false,
+        inputFormat: "",
         jsonKeys: [],
         showSuggestions: false,
         selectedIndex: resp.selected_index,
@@ -53,6 +54,7 @@ async function invoke_jsonparser_add_tab() {
       jsonOutput: "",
       jsonQuery: "",
       jsonQuerying: false,
+      inputFormat: "",
       jsonKeys: [],
       showSuggestions: false,
       selectedIndex: resp.selected_index,
@@ -110,29 +112,7 @@ const parsedJsonOutput = computed(() => {
   }
 });
 
-const inputFormat = computed(() => {
-  const input = activeTab.value?.jsonInput?.trim();
-  if (!input) return "";
-  try {
-    JSON.parse(input);
-    return "JSON";
-  } catch (_) {
-    const records = input.split(/\r?\n/).filter((line) => line.trim());
-    if (records.length > 0 && records.every((line) => {
-      try {
-        JSON.parse(line);
-        return true;
-      } catch (_) {
-        return false;
-      }
-    })) {
-      return "JSONL";
-    }
-    // Non-JSON input can be a source expression (curl, URL, file path, or
-    // HTTP request text) that the DevKit kernel resolves to JSON/JSONL.
-    return "Text";
-  }
-});
+const inputFormat = computed(() => activeTab.value?.inputFormat || "");
 
 function scrollTabs(direction) {
   if (!tabsScrollContainer.value) return;
