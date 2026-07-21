@@ -1,4 +1,4 @@
-use crate::command::json::parse_json_or_jsonl;
+use crate::command::formatter::parse_json_or_jsonl;
 use serde::{Deserialize, Serialize};
 use std::str::FromStr;
 
@@ -73,8 +73,8 @@ impl ContentType {
             .iter()
             .any(|line| line.starts_with('[') && line.ends_with(']'))
             || lines
-                .iter()
-                .any(|line| line.contains('=') && !line.contains("=="))
+            .iter()
+            .any(|line| line.contains('=') && !line.contains("=="))
         {
             return Self::Toml;
         }
@@ -115,7 +115,7 @@ fn is_jsonl(input: &str) -> bool {
 
 #[cfg(test)]
 mod tests {
-    use super::{ContentType, detect_content_type};
+    use super::{detect_content_type, ContentType};
 
     #[test]
     fn detects_supported_content_types() {

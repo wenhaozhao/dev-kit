@@ -1,9 +1,9 @@
-use crate::SharedAppState;
 use crate::components::json::jsonparser::JsonParserTabState;
 use crate::components::jsonparser::JsonParserTab;
-use dev_kit::command::json::{DiffTool, JsonpathMatch, QueryType};
+use crate::SharedAppState;
+use dev_kit::command::json::{DiffTool, Json, JsonpathMatch, QueryType};
 use dev_kit::command::text::ContentType;
-use dev_kit::command::textdiff::{DiffLine, diff_lines};
+use dev_kit::command::textdiff::{diff_lines, DiffLine};
 use itertools::Itertools;
 use std::str::FromStr;
 
@@ -56,12 +56,12 @@ pub async fn jsonparser_query_json(
         .jsonparser
         .get_or_parse(&tab_id, &json, reload)
         .await?;
-    let arr = value
-        .query(
-            query.as_deref(),
-            query_type.and_then(|s| QueryType::from_str(&s).ok()),
-            true,
-        )
+    let arr = Json::query(
+        &value,
+        query.as_deref(),
+        query_type.and_then(|s| QueryType::from_str(&s).ok()),
+        true,
+    )
         .map_err(|e| e.to_string())?;
     Ok(arr)
 }
@@ -90,12 +90,12 @@ pub async fn jsondiff_query_json(
 ) -> Result<String, String> {
     let app_state = state.write().await;
     let value = app_state.jsondiff.get_or_parse(&json, reload).await?;
-    let arr = value
-        .query(
-            query.as_deref(),
-            query_type.and_then(|s| QueryType::from_str(&s).ok()),
-            true,
-        )
+    let arr = Json::query(
+        &value,
+        query.as_deref(),
+        query_type.and_then(|s| QueryType::from_str(&s).ok()),
+        true,
+    )
         .map_err(|e| e.to_string())?;
     Ok(arr)
 }
@@ -110,7 +110,7 @@ pub async fn jsondiff_search_json_paths(
     let app_state = state.read().await;
     let value = app_state.jsondiff.get_or_parse(&json, false).await?;
     let query_type = query_type.and_then(|s| QueryType::from_str(&s).ok());
-    match value.search_paths(query.as_deref(), query_type) {
+    match Json::search_paths(&value, query.as_deref(), query_type) {
         Ok(arr) => Ok(arr.into_iter().collect_vec()),
         Err(err) => Err(err.to_string()),
     }
@@ -134,8 +134,9 @@ pub async fn jsondiff_diff_json(
     } else {
         DiffTool::default()
     };
-    left_val
-        .diff(&right_val, query.as_deref(), query_type, Some(tool))
+    Json::diff(
+        &left_val, &right_val, query.as_deref(), query_type, Some(tool),
+    )
         .map_err(|e| e.to_string())?;
     Ok(())
 }

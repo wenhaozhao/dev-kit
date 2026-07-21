@@ -1,4 +1,5 @@
 use derive_more::{Deref, DerefMut, From};
+use dev_kit::command::formatter::JsonValue;
 use dev_kit::command::json::{Json, JsonpathMatch};
 use serde::{Deserialize, Serialize};
 use sha2::Digest;
@@ -6,7 +7,6 @@ use std::collections::HashMap;
 use std::ops::{Add, Deref};
 use std::path::{Path, PathBuf};
 use std::str::FromStr;
-use std::sync::Arc;
 use tokio::fs;
 
 #[derive(Debug, Deref, DerefMut)]
@@ -43,7 +43,7 @@ impl JsonParserState {
         Ok(JsonParserState { inner, data_path })
     }
 
-    async fn update_state(&mut self) -> Result<(), String> {
+    async fn update_state(&self) -> Result<(), String> {
         let config_path = self.data_path.join("state.json");
         let tab_json_str = serde_json::to_string_pretty(&**self).map_err(|e| e.to_string())?;
         fs::write(&config_path, tab_json_str)
@@ -111,10 +111,10 @@ impl JsonParserState {
 
     pub async fn remove_tab(&mut self, tab_id: &str) -> Result<(), String> {
         if let Some(JsonParserTabState {
-            json_input,
-            json_output,
-            ..
-        }) = self.tabs.remove(tab_id)
+                        json_input,
+                        json_output,
+                        ..
+                    }) = self.tabs.remove(tab_id)
         {
             if let Some(JsonInput(path)) = json_input {
                 let _ = fs::remove_file(path).await;
@@ -144,9 +144,8 @@ impl JsonParserState {
                     return Ok(json_query_cache.clone());
                 }
             }
-            let json = Self::get_only(tab).await?;
-            let arr = json
-                .search_paths(Some(query), None)
+            let json_value = Self::get_only(tab).await?;
+            let arr = dev_kit::command::json::Json::search_paths(&json_value, Some(query), None)
                 .map_err(|e| e.to_string())?;
             let _ = tab.json_query_cache.replace(arr);
             let _ = tab.json_query.replace(JsonQuery(query.to_string()));
@@ -164,107 +163,79 @@ impl JsonParserState {
         tab_id: &str,
         json_input_string: &str,
         reload: bool,
-    ) -> Result<Json, String> {
-        let json_value = {
-            let config_dir = self.data_path.to_owned();
-            let Some(tab) = self.tabs.get_mut(tab_id) else {
+    ) -> Result<&JsonValue, String> {
+        let config_dir = self.data_path.to_owned();
+
+        match {
+            let Some(tab) = self.tabs.get(tab_id) else {
                 return Err("Tab not found".to_string());
             };
             let json_input_string_sha = hex::encode(sha2::Sha256::digest(json_input_string));
             let sha_eq =
                 json_input_string_sha.eq(tab.json_input_sha.as_deref().unwrap_or_default());
-            if let (true, false, Some(json_value), _) =
-                (sha_eq, reload, &tab.json_output_cache, &tab.json_output)
-            {
-                return Ok(Json::clone(json_value));
+            (sha_eq, reload, tab.json_output_cache.is_some(), tab.json_output.is_some(), json_input_string_sha)
+        } {
+            (true, false, true, _, _) => {}
+            (true, false, false, true, _) => {
+                let tab = self.tabs.get_mut(tab_id).expect("unexpected none tab");
+                let JsonOutput(path) = tab.json_output.as_ref().expect("unexpected none json_output");
+                let json = Json::Filepath(path.to_path_buf());
+                let json_value = JsonValue::try_from(&json).map_err(|err| format!("{err}"))?;
+                let _ = tab.json_output_cache.replace(json_value);
             }
-            if let (true, false, None, Some(JsonOutput(path))) =
-                (sha_eq, reload, &tab.json_output_cache, &tab.json_output)
-            {
-                let json = fs::read_to_string(path)
-                    .await
-                    .map_err(|e| e.to_string())
-                    .and_then(|it| {
-                        serde_json::from_str::<serde_json::Value>(&it).map_err(|e| e.to_string())
-                    })
-                    .map(|it| Arc::new(Json::JsonValue(Arc::new(it))))?;
-                let _ = tab.json_output_cache.replace(json);
-                return Ok(Json::clone(
-                    tab.json_output_cache
-                        .as_deref()
-                        .ok_or("No json-output found")?,
-                ));
+            (.., json_input_string_sha) => {
+                let tab = self.tabs.get_mut(tab_id).expect("unexpected none tab");
+                // update json-input
+                if let Some(JsonInput(path)) = &tab.json_input {
+                    fs::write(path, json_input_string)
+                        .await
+                        .map_err(|e| e.to_string())?;
+                } else {
+                    let path = config_dir.join(format!("input-{}", uuid::Uuid::new_v4()));
+                    fs::write(&path, json_input_string)
+                        .await
+                        .map_err(|e| e.to_string())?;
+                    let _ = tab.json_input.replace(JsonInput(path));
+                }
+                let (json_value, json_value_stringify) = {
+                    let json_value = JsonValue::from_str(json_input_string).map_err(|e| e.to_string())?;
+                    let json_value_stringify =
+                        serde_json::to_string_pretty(&*json_value).map_err(|e| e.to_string())?;
+                    (json_value, json_value_stringify)
+                };
+                if let Some(JsonOutput(path)) = &tab.json_output {
+                    fs::write(path, json_value_stringify)
+                        .await
+                        .map_err(|e| e.to_string())?;
+                } else {
+                    let path = config_dir.join(format!("output-{}.json", uuid::Uuid::new_v4()));
+                    fs::write(&path, json_value_stringify)
+                        .await
+                        .map_err(|e| e.to_string())?;
+                    let _ = &tab.json_output.replace(JsonOutput(path));
+                };
+                let _ = tab.json_output_cache.replace(json_value);
+                let _ = tab.json_query_cache.take();
+                let _ = tab.json_input_sha.replace(json_input_string_sha);
+                self.update_state().await?;
             }
-            // update json-input
-
-            if let Some(JsonInput(path)) = &tab.json_input {
-                fs::write(path, json_input_string)
-                    .await
-                    .map_err(|e| e.to_string())?;
-            } else {
-                let path = config_dir.join(format!("input-{}", uuid::Uuid::new_v4()));
-                fs::write(&path, json_input_string)
-                    .await
-                    .map_err(|e| e.to_string())?;
-                let _ = tab.json_input.replace(JsonInput(path));
-            }
-            let (json_value, json_value_stringify) = {
-                let json_value = Json::from_str(json_input_string)
-                    .map_err(|e| e.to_string())
-                    .and_then(|json| {
-                        Arc::<serde_json::Value>::try_from(&json).map_err(|e| e.to_string())
-                    })
-                    .map_err(|e| e.to_string())?;
-                let json_value_stringify =
-                    serde_json::to_string_pretty(&json_value).map_err(|e| e.to_string())?;
-                (json_value, json_value_stringify)
-            };
-            let json = if let Some(JsonOutput(path)) = &tab.json_output {
-                fs::write(path, json_value_stringify)
-                    .await
-                    .map_err(|e| e.to_string())?;
-                Arc::new(Json::JsonValue(json_value))
-            } else {
-                let path = config_dir.join(format!("output-{}.json", uuid::Uuid::new_v4()));
-                fs::write(&path, json_value_stringify)
-                    .await
-                    .map_err(|e| e.to_string())?;
-                let _ = &tab.json_output.replace(JsonOutput(path));
-                Arc::new(Json::JsonValue(json_value))
-            };
-            let _ = tab.json_output_cache.replace(json);
-            let _ = tab.json_query_cache.take();
-            let _ = tab.json_input_sha.replace(json_input_string_sha);
-            Json::clone(
-                tab.json_output_cache
-                    .as_deref()
-                    .ok_or("No json-output found")?,
-            )
         };
-        self.update_state().await?;
+        let json_value = self.tabs.get(tab_id).expect("unexpected none tab").json_output_cache.as_ref().expect("unexpected none json_output_cache");
         Ok(json_value)
     }
 }
 
 impl JsonParserState {
-    async fn get_only(tab: &mut JsonParserTabState) -> Result<Json, String> {
-        if let Some(json) = &tab.json_output_cache {
-            return Ok(Json::clone(json));
+    async fn get_only(tab: &mut JsonParserTabState) -> Result<&JsonValue, String> {
+        if tab.json_output_cache.is_none() {
+            let Some(JsonOutput(path)) = &tab.json_output else {
+                return Err("No json-input found".to_string());
+            };
+            let json_output_string = tokio::fs::read_to_string(path).await.map_err(|err| format!("{err}"))?;
+            let json_value = JsonValue::from_str(&json_output_string).map_err(|err| format!("{err}"))?;
+            tab.json_output_cache.replace(json_value);
         }
-        let Some(JsonOutput(path)) = &tab.json_output else {
-            return Err("No json-input found".to_string());
-        };
-        let json = fs::read_to_string(&path)
-            .await
-            .map_err(|e| e.to_string())
-            .and_then(|it| serde_json::from_str(&it).map_err(|e| e.to_string()))
-            .map(|it| Arc::new(Json::JsonValue(Arc::new(it))))?;
-        let _ = tab.json_output_cache.replace(json);
-        Ok(Json::clone(
-            tab.json_output_cache
-                .as_deref()
-                .ok_or("No json-output found")?,
-        ))
+        Ok(tab.json_output_cache.as_ref().expect("unexpected none json_output_cache"))
     }
 }
 
@@ -276,7 +247,7 @@ pub struct JsonParserTabState {
     json_input_sha: Option<String>,
     json_output: Option<JsonOutput>,
     #[serde(skip)]
-    json_output_cache: Option<Arc<Json>>,
+    json_output_cache: Option<JsonValue>,
     json_query: Option<JsonQuery>,
     #[serde(skip)]
     json_query_cache: Option<Vec<JsonpathMatch>>,

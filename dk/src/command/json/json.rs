@@ -6,16 +6,14 @@ use serde::ser::Error;
 use serde::{Serialize, Serializer};
 use serde_json::Value;
 use std::collections::BTreeMap;
-use std::sync::Arc;
 use std::{env, fs};
 
 impl Json {
     pub fn search_paths(
-        &self,
+        json: &Value,
         query: Option<&str>,
         query_type: Option<QueryType>,
     ) -> crate::Result<Vec<JsonpathMatch>> {
-        let json = Arc::<Value>::try_from(self)?;
         let query = query
             .map(|it| it.trim())
             .filter(|it| !it.is_empty())
@@ -58,12 +56,11 @@ impl Json {
     }
 
     pub fn query(
-        &self,
+        json: &serde_json::Value,
         query: Option<&str>,
         query_type: Option<QueryType>,
         beauty: bool,
     ) -> crate::Result<String> {
-        let json = Arc::<Value>::try_from(self)?;
         let query_vals = Self::query_actual(&json, query, query_type)?;
         match &query_vals {
             QueryVals::Origin(_) | QueryVals::KeyPattern(_) => {
@@ -93,8 +90,8 @@ impl Json {
     }
 
     pub fn diff(
-        &self,
-        other: &Self,
+        left: &Value,
+        right: &Value,
         query: Option<&str>,
         query_type: Option<QueryType>,
         diff_tool: Option<DiffTool>,
@@ -105,14 +102,12 @@ impl Json {
         if tmp_dir.exists() {
             fs::remove_dir_all(&tmp_dir)?;
         }
-        let left = self;
-        let right = other;
         fs::create_dir_all(&tmp_dir)?;
-        let left = left.diff_prepare(query, query_type)?;
+        let left = Self::diff_prepare(left, query, query_type)?;
         let left_path = tmp_dir.join("left.json");
         fs::write(&left_path, left)?;
         println!("write left to file {}", left_path.display());
-        let right = right.diff_prepare(query, query_type)?;
+        let right = Self::diff_prepare(right, query, query_type)?;
         let right_path = tmp_dir.join("right.json");
         fs::write(&right_path, right)?;
         println!("write right to file {}", right_path.display());
@@ -297,11 +292,10 @@ impl Json {
     }
 
     fn diff_prepare(
-        &self,
+        json: &Value,
         query: Option<&str>,
         query_type: Option<QueryType>,
     ) -> crate::Result<String> {
-        let json = Arc::<Value>::try_from(self)?;
         let array = Self::query_actual(&json, query, query_type)?;
         let pretty = serde_json::to_string_pretty(&array)?;
         Ok(pretty)
