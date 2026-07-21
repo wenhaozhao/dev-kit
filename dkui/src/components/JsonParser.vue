@@ -128,7 +128,9 @@ const inputFormat = computed(() => {
     })) {
       return "JSONL";
     }
-    return "Invalid JSON/JSONL";
+    // Non-JSON input can be a source expression (curl, URL, file path, or
+    // HTTP request text) that the DevKit kernel resolves to JSON/JSONL.
+    return "Text";
   }
 });
 
@@ -424,8 +426,8 @@ async function copyOutputToClipboard(e) {
     </div>
     <div class="json-inputs">
       <div v-if="activeTab" class="textarea-container" :class="{ dragging: isDragging }">
-        <textarea v-model="activeTab.jsonInput" placeholder="Enter JSON or JSONL..." rows="5"></textarea>
-        <span v-if="inputFormat" class="format-badge" :class="{ invalid: inputFormat.startsWith('Invalid') }">
+        <textarea v-model="activeTab.jsonInput" placeholder="Enter JSON, JSONL, or a source expression..." rows="5"></textarea>
+        <span v-if="inputFormat" class="format-badge">
           {{ inputFormat }}
         </span>
         <div class="textarea-actions">
