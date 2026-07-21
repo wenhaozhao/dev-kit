@@ -1,5 +1,5 @@
 use derive_more::{Deref, DerefMut, From};
-use dev_kit::command::formatter::JsonValue;
+use dev_kit::command::formatter::FormattedValue;
 use dev_kit::command::json::{Json, JsonpathMatch};
 use serde::{Deserialize, Serialize};
 use sha2::Digest;
@@ -144,7 +144,8 @@ impl JsonParserState {
                     return Ok(json_query_cache.clone());
                 }
             }
-            let json_value = Self::get_only(tab).await?;
+            let formatted_value = Self::get_only(tab).await?;
+            let json_value = formatted_value.try_into().map_err(|e| format!("{e}"))?;
             let arr = dev_kit::command::json::Json::search_paths(&json_value, Some(query), None)
                 .map_err(|e| e.to_string())?;
             let _ = tab.json_query_cache.replace(arr);
@@ -163,7 +164,7 @@ impl JsonParserState {
         tab_id: &str,
         json_input_string: &str,
         reload: bool,
-    ) -> Result<&JsonValue, String> {
+    ) -> Result<&FormattedValue, String> {
         let config_dir = self.data_path.to_owned();
 
         match {
@@ -180,7 +181,7 @@ impl JsonParserState {
                 let tab = self.tabs.get_mut(tab_id).expect("unexpected none tab");
                 let JsonOutput(path) = tab.json_output.as_ref().expect("unexpected none json_output");
                 let json = Json::Filepath(path.to_path_buf());
-                let json_value = JsonValue::try_from(&json).map_err(|err| format!("{err}"))?;
+                let json_value = FormattedValue::try_from(&json).map_err(|err| format!("{err}"))?;
                 let _ = tab.json_output_cache.replace(json_value);
             }
             (.., json_input_string_sha) => {
@@ -197,24 +198,23 @@ impl JsonParserState {
                         .map_err(|e| e.to_string())?;
                     let _ = tab.json_input.replace(JsonInput(path));
                 }
-                let (json_value, json_value_stringify) = {
-                    let json_value = JsonValue::from_str(json_input_string).map_err(|e| e.to_string())?;
-                    let json_value_stringify =
-                        serde_json::to_string_pretty(&*json_value).map_err(|e| e.to_string())?;
-                    (json_value, json_value_stringify)
+                let (formatted_value, pretty) = {
+                    let formatted_value = FormattedValue::from_str(json_input_string).map_err(|e| e.to_string())?;
+                    let pretty = formatted_value.to_string_pretty().map_err(|e| e.to_string())?;
+                    (formatted_value, pretty)
                 };
                 if let Some(JsonOutput(path)) = &tab.json_output {
-                    fs::write(path, json_value_stringify)
+                    fs::write(path, pretty)
                         .await
                         .map_err(|e| e.to_string())?;
                 } else {
                     let path = config_dir.join(format!("output-{}.json", uuid::Uuid::new_v4()));
-                    fs::write(&path, json_value_stringify)
+                    fs::write(&path, pretty)
                         .await
                         .map_err(|e| e.to_string())?;
                     let _ = &tab.json_output.replace(JsonOutput(path));
                 };
-                let _ = tab.json_output_cache.replace(json_value);
+                let _ = tab.json_output_cache.replace(formatted_value);
                 let _ = tab.json_query_cache.take();
                 let _ = tab.json_input_sha.replace(json_input_string_sha);
                 self.update_state().await?;
@@ -226,13 +226,13 @@ impl JsonParserState {
 }
 
 impl JsonParserState {
-    async fn get_only(tab: &mut JsonParserTabState) -> Result<&JsonValue, String> {
+    async fn get_only(tab: &mut JsonParserTabState) -> Result<&FormattedValue, String> {
         if tab.json_output_cache.is_none() {
             let Some(JsonOutput(path)) = &tab.json_output else {
                 return Err("No json-input found".to_string());
             };
             let json_output_string = tokio::fs::read_to_string(path).await.map_err(|err| format!("{err}"))?;
-            let json_value = JsonValue::from_str(&json_output_string).map_err(|err| format!("{err}"))?;
+            let json_value = FormattedValue::from_str(&json_output_string).map_err(|err| format!("{err}"))?;
             tab.json_output_cache.replace(json_value);
         }
         Ok(tab.json_output_cache.as_ref().expect("unexpected none json_output_cache"))
@@ -247,7 +247,7 @@ pub struct JsonParserTabState {
     json_input_sha: Option<String>,
     json_output: Option<JsonOutput>,
     #[serde(skip)]
-    json_output_cache: Option<JsonValue>,
+    json_output_cache: Option<FormattedValue>,
     json_query: Option<JsonQuery>,
     #[serde(skip)]
     json_query_cache: Option<Vec<JsonpathMatch>>,

@@ -43,3 +43,5 @@ fix-path-env = { git = "https://github.com/tauri-apps/fix-path-env-rs" }
 mime = { workspace = true }
 axum = { version = "0.8" }
 image = { workspace = true }
+serde_yaml = { workspace = true }
+toml = { workspace = true }

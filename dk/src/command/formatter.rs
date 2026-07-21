@@ -1,139 +1,162 @@
+use crate::command::json::Json;
 use crate::command::text::ContentType;
-use anyhow::{anyhow, Context};
-use derive_more::{Deref, Display};
-use serde::Serialize;
+use anyhow::anyhow;
+use serde::{Deserialize, Serialize};
 use serde_json::Value;
+use std::fs;
+use std::str::FromStr;
 
-pub fn format_text(input: &str, content_type: ContentType) -> crate::Result<String> {
-    match content_type {
-        ContentType::Json | ContentType::Jsonl => {
-            let json_value = parse_json_or_jsonl(input)?;
-            Ok(serde_json::to_string_pretty(&*json_value)?)
-        }
-        ContentType::Toml => {
-            let table: toml::Table = input.parse().context("Invalid TOML")?;
-            Ok(toml::to_string_pretty(&table)?)
-        }
-        ContentType::Yaml => {
-            let value: serde_yaml::Value = serde_yaml::from_str(input).context("Invalid YAML")?;
-            Ok(serde_yaml::to_string(&value)?.trim_end().to_string())
-        }
-        _ => Ok(normalize_plain_text(input)),
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub enum FormattedValue {
+    Json(Value),
+    Jsonl(Vec<Value>),
+    Yaml(serde_yaml::Value),
+    Toml(toml::Value),
+    Text(String),
+}
+
+impl TryFrom<&FormattedValue> for Value {
+    type Error = anyhow::Error;
+
+    fn try_from(value: &FormattedValue) -> Result<Self, Self::Error> {
+        value.clone().try_into()
     }
 }
 
-pub fn normalize_plain_text(input: &str) -> String {
-    input
-        .lines()
-        .map(str::trim_end)
-        .collect::<Vec<_>>()
-        .join("\n")
-        .trim_end()
-        .to_string()
+impl TryFrom<FormattedValue> for Value {
+    type Error = anyhow::Error;
+
+    fn try_from(value: FormattedValue) -> Result<Self, Self::Error> {
+        let value = match value {
+            FormattedValue::Json(value) => value,
+            FormattedValue::Jsonl(value) => Value::Array(value),
+            FormattedValue::Yaml(value) => serde_json::to_value(value)?,
+            FormattedValue::Toml(value) => serde_json::to_value(value)?,
+            FormattedValue::Text(value) => serde_json::Value::String(value),
+        };
+        Ok(value)
+    }
 }
 
-#[derive(Debug, Clone, Copy, Display, Serialize)]
-pub enum JsonInputType {
-    Json,
-    Jsonl,
+impl FormattedValue {
+    pub fn to_string_pretty(&self) -> crate::Result<String> {
+        match self {
+            FormattedValue::Json(value) => Ok(serde_json::to_string_pretty(value)?),
+            FormattedValue::Jsonl(value) => Ok(serde_json::to_string_pretty(value)?),
+            FormattedValue::Yaml(value) => Ok(serde_yaml::to_string(value)?),
+            FormattedValue::Toml(value) => Ok(toml::to_string_pretty(value)?),
+            FormattedValue::Text(value) => Ok(value.clone()),
+        }
+    }
+
+    pub fn to_string(&self) -> crate::Result<String> {
+        match self {
+            FormattedValue::Json(value) => Ok(serde_json::to_string(value)?),
+            FormattedValue::Jsonl(value) => Ok(serde_json::to_string(value)?),
+            FormattedValue::Yaml(value) => Ok(serde_yaml::to_string(value)?),
+            FormattedValue::Toml(value) => Ok(toml::to_string(value)?),
+            FormattedValue::Text(value) => Ok(value.clone()),
+        }
+    }
 }
 
-#[derive(Debug, Clone, Deref)]
-pub struct JsonValue {
-    #[deref]
-    value: Value,
-    pub intput_type: JsonInputType,
+impl From<&FormattedValue> for ContentType {
+    fn from(value: &FormattedValue) -> Self {
+        match value {
+            FormattedValue::Json(_) => Self::Json,
+            FormattedValue::Jsonl(_) => Self::Jsonl,
+            FormattedValue::Yaml(_) => Self::Yaml,
+            FormattedValue::Toml(_) => Self::Toml,
+            FormattedValue::Text(_) => Self::Text,
+        }
+    }
 }
 
-/// Parses a JSON document, or a JSON Lines stream when the whole input is not JSON.
-///
-/// JSON Lines records are converted into a JSON array so existing JSONPath and query
-/// behaviour remains unchanged.
-pub fn parse_json_or_jsonl(input: &str) -> crate::Result<JsonValue> {
-    match serde_json::from_str(input) {
-        Ok(value) => Ok(JsonValue {
-            value,
-            intput_type: JsonInputType::Json,
-        }),
-        Err(json_error) => {
-            let mut values = Vec::new();
-            for (index, line) in input.lines().enumerate() {
-                let line = line.trim();
-                if line.is_empty() {
-                    continue;
+pub fn parse_formatted_value(input: &str) -> FormattedValue {
+    if let Ok(json) = Json::from_str(input) {
+        match json {
+            Json::Cmd(input) => {
+                return parse_formatted_value(&input);
+            }
+            Json::Filepath(path) => {
+                if let Ok(input) = fs::read_to_string(path) {
+                    return parse_formatted_value(&input);
                 }
-                let value = serde_json::from_str(line)
-                    .map_err(|error| anyhow!("Invalid JSONL at line {}: {}", index + 1, error))?;
-                values.push(value);
             }
-            if values.is_empty() && !input.trim().is_empty() {
-                log::debug!("{}", json_error);
-                Err(anyhow!("Invalid JSON format: {}", json_error))
-            } else {
-                Ok(JsonValue {
-                    value: Value::Array(values),
-                    intput_type: JsonInputType::Jsonl,
-                })
+            Json::HttpRequest(http_request) => {
+                if let Ok(value) = (&http_request).try_into() {
+                    return value;
+                }
             }
+            Json::String(_) => {}
         }
     }
+
+    fn guess_jsonl(input: &str) -> crate::Result<Vec<Value>> {
+        let mut values = Vec::new();
+        for (index, line) in input.lines().enumerate() {
+            let line = line.trim();
+            if line.is_empty() {
+                continue;
+            }
+            let value = serde_json::from_str(line)
+                .map_err(|error| anyhow!("Invalid JSONL at line {}: {}", index + 1, error))?;
+            values.push(value);
+        }
+        Ok(values)
+    }
+    if let Ok(value) = serde_json::from_str(&input) {
+        return FormattedValue::Json(value);
+    }
+    if let Ok(values) = guess_jsonl(input) {
+        return FormattedValue::Jsonl(values);
+    }
+    if let Ok(value) = serde_yaml::from_str(input) {
+        return FormattedValue::Yaml(value);
+    }
+    if let Ok(value) = toml::from_str(input) {
+        return FormattedValue::Toml(value);
+    }
+    FormattedValue::Text(input.to_string())
 }
 
 
 #[cfg(test)]
 mod tests {
-    use super::{format_text, normalize_plain_text, parse_json_or_jsonl};
-    use crate::command::text::ContentType;
+    use super::{parse_formatted_value, FormattedValue};
     use serde_json::json;
 
     #[test]
     fn parses_standard_json_without_changing_it() {
-        assert_eq!(
-            &*parse_json_or_jsonl(r#"{"name":"devkit"}"#).unwrap(),
-            &json!({"name": "devkit"})
-        );
+        match parse_formatted_value(r#"{"name":"devkit"}"#) {
+            FormattedValue::Json(value) => {
+                assert_eq!(
+                    value,
+                    json!({"name": "devkit"})
+                );
+            }
+            _ => panic!("expected Json")
+        }
     }
 
     #[test]
     fn parses_jsonl_records_into_an_array() {
-        let input = "{\"name\":\"first\"}\n\n2\ntrue\nnull\n\"last\"";
-        assert_eq!(
-            &*parse_json_or_jsonl(input).unwrap(),
-            &json!([{"name": "first"}, 2, true, null, "last"]),
-        );
-    }
-
-    #[test]
-    fn reports_the_invalid_jsonl_line() {
-        let error = parse_json_or_jsonl("{\"valid\":true}\nnot-json\n{}").unwrap_err();
-        assert!(error.to_string().contains("line 2"));
-    }
-
-
-    #[test]
-    fn formats_structured_content() {
-        assert_eq!(
-            format_text("{\"b\":2,\"a\":1}", ContentType::Json).unwrap(),
-            "{\n  \"a\": 1,\n  \"b\": 2\n}"
-        );
-        assert_eq!(
-            format_text("{\"a\":1}\n{\"b\":2}", ContentType::Jsonl).unwrap(),
-            "[\n  {\n    \"a\": 1\n  },\n  {\n    \"b\": 2\n  }\n]"
-        );
-        assert!(
-            format_text("name = \"devkit\"", ContentType::Toml)
-                .unwrap()
-                .contains("name = \"devkit\"")
-        );
-        assert!(
-            format_text("name: devkit", ContentType::Yaml)
-                .unwrap()
-                .contains("name: devkit")
-        );
-    }
-
-    #[test]
-    fn normalizes_plain_text_without_external_tools() {
-        assert_eq!(normalize_plain_text("first  \nsecond\n\n"), "first\nsecond");
+        let input = r#"
+{"name": "first"}
+2
+true
+null
+last
+        "#;
+        match parse_formatted_value(input) {
+            FormattedValue::Jsonl(values) => {
+                let value = serde_json::to_value(values).unwrap();
+                assert_eq!(
+                    value,
+                    json!({"name": "devkit"})
+                );
+            }
+            _ => panic!("expected Jsonl")
+        }
     }
 }

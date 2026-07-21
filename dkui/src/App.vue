@@ -59,7 +59,7 @@ function updateQuery(val) {
   <main class="container">
     <div class="tabs">
       <button :class="{ active: currentTab === 'json' }" @click="currentTab = 'json'">JSON Parser</button>
-      <button :class="{ active: currentTab === 'diff' }" @click="currentTab = 'diff'">JSON Diff</button>
+      <button :class="{ active: currentTab === 'diff' }" @click="currentTab = 'diff'">Content Diff</button>
       <button :class="{ active: currentTab === 'uri_parse' }" @click="currentTab = 'uri_parse'">URI Parser</button>
       <button :class="{ active: currentTab === 'uri_decoder' }" @click="currentTab = 'uri_decoder'">URI Decoder</button>
       <button :class="{ active: currentTab === 'time' }" @click="currentTab = 'time'">Time Parser</button>

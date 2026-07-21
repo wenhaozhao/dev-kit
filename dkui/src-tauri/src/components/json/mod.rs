@@ -1,10 +1,8 @@
 use crate::components::json::jsonparser::JsonParserTabState;
 use crate::components::jsonparser::JsonParserTab;
 use crate::SharedAppState;
-use dev_kit::command::formatter::JsonInputType;
 use dev_kit::command::json::{DiffTool, Json, JsonpathMatch, QueryType};
 use dev_kit::command::text::ContentType;
-use dev_kit::command::textdiff::{diff_lines, DiffLine};
 use itertools::Itertools;
 use serde::Serialize;
 use std::str::FromStr;
@@ -58,7 +56,7 @@ pub async fn jsonparser_query_json(
         .jsonparser
         .get_or_parse(&tab_id, &json, reload)
         .await?;
-    let arr = Json::query(
+    let arr = Json::query_beauty(
         &value,
         query.as_deref(),
         query_type.and_then(|s| QueryType::from_str(&s).ok()),
@@ -67,14 +65,14 @@ pub async fn jsonparser_query_json(
         .map_err(|e| e.to_string())?;
     Ok(JsonparserQueryJson {
         data: arr,
-        intput_type: value.intput_type,
+        intput_type: value.into(),
     })
 }
 
 #[derive(Serialize)]
 pub struct JsonparserQueryJson {
     data: String,
-    intput_type: JsonInputType,
+    intput_type: ContentType,
 }
 
 #[tauri::command]
@@ -94,21 +92,30 @@ pub async fn jsonparser_search_json_paths(
 #[tauri::command]
 pub async fn jsondiff_query_json(
     state: tauri::State<'_, SharedAppState>,
-    json: String,
+    input: String,
     query: Option<String>,
     query_type: Option<String>,
     reload: bool,
-) -> Result<String, String> {
+) -> Result<JsondiffQueryJson, String> {
     let app_state = state.write().await;
-    let value = app_state.jsondiff.get_or_parse(&json, reload).await?;
-    let arr = Json::query(
+    let value = app_state.jsondiff.get_or_parse(&input, reload).await?;
+    let arr = Json::query_beauty(
         &value,
         query.as_deref(),
         query_type.and_then(|s| QueryType::from_str(&s).ok()),
         true,
     )
         .map_err(|e| e.to_string())?;
-    Ok(arr)
+    Ok(JsondiffQueryJson {
+        data: arr,
+        intput_type: (&value).into(),
+    })
+}
+
+#[derive(Serialize)]
+pub struct JsondiffQueryJson {
+    data: String,
+    intput_type: ContentType,
 }
 
 #[tauri::command]
@@ -119,7 +126,8 @@ pub async fn jsondiff_search_json_paths(
     query_type: Option<String>,
 ) -> Result<Vec<JsonpathMatch>, String> {
     let app_state = state.read().await;
-    let value = app_state.jsondiff.get_or_parse(&json, false).await?;
+    let formatted_value = app_state.jsondiff.get_or_parse(&json, false).await?;
+    let value = formatted_value.try_into().map_err(|err|format!("{err}"))?;
     let query_type = query_type.and_then(|s| QueryType::from_str(&s).ok());
     match Json::search_paths(&value, query.as_deref(), query_type) {
         Ok(arr) => Ok(arr.into_iter().collect_vec()),
@@ -159,19 +167,4 @@ pub fn get_available_diff_tools() -> Vec<String> {
         .filter(|t: &DiffTool| t.is_available())
         .map(|t| t.to_string())
         .collect()
-}
-
-#[tauri::command]
-pub fn textdiff_lines(
-    left: String,
-    right: String,
-    left_type: Option<String>,
-    right_type: Option<String>,
-) -> Vec<DiffLine> {
-    diff_lines(
-        &left,
-        &right,
-        left_type.and_then(|value| ContentType::from_str(&value).ok()),
-        right_type.and_then(|value| ContentType::from_str(&value).ok()),
-    )
 }

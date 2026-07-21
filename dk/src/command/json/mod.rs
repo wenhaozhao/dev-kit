@@ -1,4 +1,4 @@
-use crate::command::formatter::{parse_json_or_jsonl, JsonValue};
+use crate::command::formatter::{parse_formatted_value, FormattedValue};
 use crate::command::http_parser::HttpRequest;
 use derive_more::Display;
 use std::fs;
@@ -66,8 +66,8 @@ impl super::Command for JsonCommand {
                 beauty,
                 file,
             } => {
-                let json_value = JsonValue::try_from(json)?;
-                let content = Json::query(&json_value, query.as_deref(), *query_type, *beauty)?;
+                let json_value = FormattedValue::try_from(json)?;
+                let content = Json::query_beauty(&json_value, query.as_deref(), *query_type, *beauty)?;
                 if let Some(file) = file {
                     fs::write(file, content)?;
                     println!("write to {}", file.display());
@@ -83,8 +83,8 @@ impl super::Command for JsonCommand {
                 query_type,
                 diff_tool,
             } => {
-                let left = JsonValue::try_from(left)?;
-                let right = JsonValue::try_from(right)?;
+                let left = FormattedValue::try_from(left)?;
+                let right = FormattedValue::try_from(right)?;
                 Json::diff(&left, &right, query.as_deref(), *query_type, diff_tool.map(|it| it))?;
                 Ok(())
             }

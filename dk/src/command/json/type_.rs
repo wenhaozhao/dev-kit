@@ -1,5 +1,5 @@
 use crate::command::http_parser::HttpRequest;
-use crate::command::json::{Json, JsonValue, KeyPatternType, QueryType};
+use crate::command::json::{FormattedValue, Json, KeyPatternType, QueryType};
 use crate::command::read_stdin;
 use anyhow::{anyhow, Context};
 use lazy_static::lazy_static;
@@ -8,20 +8,18 @@ use std::path::PathBuf;
 use std::process::Command;
 use std::str::FromStr;
 
-impl TryFrom<&Json> for JsonValue {
+impl TryFrom<&Json> for FormattedValue {
     type Error = anyhow::Error;
 
     fn try_from(input: &Json) -> Result<Self, Self::Error> {
         let json = match input {
             Json::Cmd(input) | Json::String(input) => {
-                let json = super::parse_json_or_jsonl(input)?;
-                json
+                super::parse_formatted_value(input)
             }
             Json::Filepath(path) => {
                 let input = fs::read_to_string(path)
                     .with_context(|| format!("read file {} failed", path.display()))?;
-                let json = super::parse_json_or_jsonl(&input)?;
-                json
+                super::parse_formatted_value(&input)
             }
             Json::HttpRequest(http_request) => http_request.try_into()?,
         };
@@ -29,11 +27,11 @@ impl TryFrom<&Json> for JsonValue {
     }
 }
 
-impl FromStr for JsonValue {
+impl FromStr for FormattedValue {
     type Err = anyhow::Error;
 
     fn from_str(s: &str) -> Result<Self, Self::Err> {
-        super::parse_json_or_jsonl(s)
+        Ok(super::parse_formatted_value(s))
     }
 }
 

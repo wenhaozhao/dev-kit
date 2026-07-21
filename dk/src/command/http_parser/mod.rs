@@ -1,5 +1,5 @@
 mod jetbrains_http;
-use crate::command::formatter::{parse_json_or_jsonl, JsonValue};
+use crate::command::formatter::{parse_formatted_value, FormattedValue};
 use anyhow::{anyhow, Context};
 use derive_more::Display;
 pub use jetbrains_http::*;
@@ -59,7 +59,7 @@ lazy_static! {
     };
 }
 
-impl TryFrom<&HttpRequest> for JsonValue {
+impl TryFrom<&HttpRequest> for FormattedValue {
     type Error = anyhow::Error;
 
     fn try_from(http_request: &HttpRequest) -> Result<Self, Self::Error> {
@@ -84,10 +84,7 @@ impl TryFrom<&HttpRequest> for JsonValue {
                     });
                     h.await
                 })??;
-                parse_json_or_jsonl(&text).map_err(|err| {
-                    log::debug!("{}", err);
-                    anyhow!("Invalid json format")
-                })
+                Ok(parse_formatted_value(&text))
             }
             HttpRequest::Uri(url) => {
                 let url = url.clone();
@@ -109,18 +106,12 @@ impl TryFrom<&HttpRequest> for JsonValue {
                     });
                     h.await
                 })??;
-                parse_json_or_jsonl(&text).map_err(|err| {
-                    log::debug!("{}", err);
-                    anyhow!("Invalid json format")
-                })
+                Ok(parse_formatted_value(&text))
             }
             HttpRequest::Filepath(path) => {
                 let text = fs::read_to_string(&path)
                     .with_context(|| format!("read file {} failed", path.display()))?;
-                parse_json_or_jsonl(&text).map_err(|err| {
-                    log::debug!("{}", err);
-                    anyhow!("Invalid json format")
-                })
+                Ok(parse_formatted_value(&text))
             }
         }
     }
