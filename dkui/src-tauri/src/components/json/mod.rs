@@ -2,7 +2,6 @@ use crate::components::json::jsonparser::JsonParserTabState;
 use crate::components::jsonparser::JsonParserTab;
 use crate::SharedAppState;
 use dev_kit::command::json::{DiffTool, Json, JsonpathMatch, QueryType};
-use dev_kit::command::text::ContentType;
 use itertools::Itertools;
 use serde::Serialize;
 use std::str::FromStr;
@@ -65,14 +64,14 @@ pub async fn jsonparser_query_json(
         .map_err(|e| e.to_string())?;
     Ok(JsonparserQueryJson {
         data: arr,
-        input_type: value.into(),
+        input_type: value.type_name(),
     })
 }
 
 #[derive(Serialize)]
 pub struct JsonparserQueryJson {
     data: String,
-    input_type: ContentType,
+    input_type: &'static str,
 }
 
 #[tauri::command]
@@ -108,14 +107,14 @@ pub async fn jsondiff_query_json(
         .map_err(|e| e.to_string())?;
     Ok(JsondiffQueryJson {
         data: arr,
-        input_type: (&value).into(),
+        input_type: value.type_name(),
     })
 }
 
 #[derive(Serialize)]
 pub struct JsondiffQueryJson {
     data: String,
-    input_type: ContentType,
+    input_type: &'static str,
 }
 
 #[tauri::command]

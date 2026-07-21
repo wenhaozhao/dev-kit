@@ -1,5 +1,4 @@
 use crate::command::json::Json;
-use crate::command::text::ContentType;
 use anyhow::anyhow;
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
@@ -39,6 +38,15 @@ impl TryFrom<FormattedValue> for Value {
 }
 
 impl FormattedValue {
+    pub fn type_name(&self) -> &'static str {
+        match self {
+            FormattedValue::Json(_) => "json",
+            FormattedValue::Jsonl(_) => "jsonl",
+            //FormattedValue::Yaml(_) => "yaml",
+            FormattedValue::Toml(_) => "toml",
+            FormattedValue::Text(_) => "text",
+        }
+    }
     pub fn to_string_pretty(&self) -> crate::Result<String> {
         match self {
             FormattedValue::Json(value) => Ok(serde_json::to_string_pretty(value)?),
@@ -56,18 +64,6 @@ impl FormattedValue {
             //FormattedValue::Yaml(value) => Ok(serde_yaml::to_string(value)?),
             FormattedValue::Toml(value) => Ok(toml::to_string(value)?),
             FormattedValue::Text(value) => Ok(value.clone()),
-        }
-    }
-}
-
-impl From<&FormattedValue> for ContentType {
-    fn from(value: &FormattedValue) -> Self {
-        match value {
-            FormattedValue::Json(_) => Self::Json,
-            FormattedValue::Jsonl(_) => Self::Jsonl,
-            //FormattedValue::Yaml(_) => Self::Yaml,
-            FormattedValue::Toml(_) => Self::Toml,
-            FormattedValue::Text(_) => Self::Text,
         }
     }
 }
