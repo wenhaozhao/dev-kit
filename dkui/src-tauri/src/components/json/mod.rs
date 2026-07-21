@@ -65,14 +65,14 @@ pub async fn jsonparser_query_json(
         .map_err(|e| e.to_string())?;
     Ok(JsonparserQueryJson {
         data: arr,
-        intput_type: value.into(),
+        input_type: value.into(),
     })
 }
 
 #[derive(Serialize)]
 pub struct JsonparserQueryJson {
     data: String,
-    intput_type: ContentType,
+    input_type: ContentType,
 }
 
 #[tauri::command]
@@ -108,14 +108,14 @@ pub async fn jsondiff_query_json(
         .map_err(|e| e.to_string())?;
     Ok(JsondiffQueryJson {
         data: arr,
-        intput_type: (&value).into(),
+        input_type: (&value).into(),
     })
 }
 
 #[derive(Serialize)]
 pub struct JsondiffQueryJson {
     data: String,
-    intput_type: ContentType,
+    input_type: ContentType,
 }
 
 #[tauri::command]

@@ -188,7 +188,7 @@ async function queryJson(reload = false) {
   }
   currentTab.jsonQuerying = true;
   try {
-    const {data, intput_type} = await invoke(
+    const {data, input_type} = await invoke(
         "jsonparser_query_json",
         {
           json: currentTab.jsonInput,
@@ -198,7 +198,7 @@ async function queryJson(reload = false) {
         }
     );
     currentTab.jsonOutput = data;
-    currentTab.inputFormat = intput_type;
+    currentTab.inputFormat = input_type;
 
   } catch (e) {
     currentTab.jsonOutput = "Error: " + e;
