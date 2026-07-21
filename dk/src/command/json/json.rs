@@ -68,12 +68,12 @@ impl Json {
                 let value = Value::Array(values.clone());
                 Ok(FormattedValue::Json(Self::query_inner(&value, query, query_type)?))
             }
-            FormattedValue::Yaml(value) => {
-                let value = serde_json::to_value(value.clone())?;
-                let query_result = Self::query_inner(&value, query, query_type)?;
-                let value = serde_json::from_value(query_result)?;
-                Ok(FormattedValue::Yaml(value))
-            }
+            // FormattedValue::Yaml(value) => {
+            //     let value = serde_json::to_value(value.clone())?;
+            //     let query_result = Self::query_inner(&value, query, query_type)?;
+            //     let value = serde_json::from_value(query_result)?;
+            //     Ok(FormattedValue::Yaml(value))
+            // }
             FormattedValue::Toml(value) => {
                 let value = serde_json::to_value(value)?;
                 let query_result = Self::query_inner(&value, query, query_type)?;
@@ -81,8 +81,7 @@ impl Json {
                 Ok(FormattedValue::Toml(value))
             }
             FormattedValue::Text(value) => {
-                let value = Value::String(value.clone());
-                Ok(FormattedValue::Json(Self::query_inner(&value, query, query_type)?))
+                Ok(FormattedValue::Text(value.clone()))
             }
         }
     }

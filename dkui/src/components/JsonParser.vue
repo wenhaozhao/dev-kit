@@ -477,12 +477,15 @@ async function copyOutputToClipboard(e) {
         </div>
         <div v-if="activeTab.jsonOutput.startsWith('Error: ')" class="error-msg">{{ activeTab.jsonOutput }}</div>
         <vue-json-pretty
-          v-else
+          v-else-if="inputFormat==='json' || inputFormat==='jsonl'"
           :data="parsedJsonOutput"
           :show-length="true"
           :deep="3"
           @dblclick="copyToClipboard"
         />
+        <div v-else @dblclick="copyToClipboard">
+          {{activeTab.jsonOutput}}
+        </div>
       </div>
     </div>
   </section>

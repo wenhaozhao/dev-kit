@@ -492,11 +492,14 @@ watch(() => props.initialQuery, debounce((newVal) => {
         </div>
         <div v-if="jsonLeftOutput.startsWith('Error: ')" class="error-msg">{{ jsonLeftOutput }}</div>
         <vue-json-pretty
-            v-else
+            v-else-if="leftType==='json'||leftType==='jsonl'"
             :data="parsedJsonOutput"
             :show-length="true"
             :deep="3"
         />
+        <div v-else>
+          {{jsonLeftOutput}}
+        </div>
       </div>
       <div v-if="jsonRightOutput" class="output">
         <div class="output-actions">
@@ -512,11 +515,14 @@ watch(() => props.initialQuery, debounce((newVal) => {
         </div>
         <div v-if="jsonRightOutput.startsWith('Error: ')" class="error-msg">{{ jsonRightOutput }}</div>
         <vue-json-pretty
-            v-else
+            v-else-if="rightType==='json'||rightType==='jsonl'"
             :data="parsedJsonRightOutput"
             :show-length="true"
             :deep="3"
         />
+        <div v-else>
+          {{jsonRightOutput}}
+        </div>
       </div>
     </div>
     <div v-if="inlineDiffLines.length" class="inline-diff" aria-label="Text diff result">

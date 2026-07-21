@@ -10,7 +10,7 @@ use std::str::FromStr;
 pub enum FormattedValue {
     Json(Value),
     Jsonl(Vec<Value>),
-    Yaml(serde_yaml::Value),
+    //Yaml(serde_yaml::Value),
     Toml(toml::Value),
     Text(String),
 }
@@ -30,7 +30,7 @@ impl TryFrom<FormattedValue> for Value {
         let value = match value {
             FormattedValue::Json(value) => value,
             FormattedValue::Jsonl(value) => Value::Array(value),
-            FormattedValue::Yaml(value) => serde_json::to_value(value)?,
+            //FormattedValue::Yaml(value) => serde_json::to_value(value)?,
             FormattedValue::Toml(value) => serde_json::to_value(value)?,
             FormattedValue::Text(value) => serde_json::Value::String(value),
         };
@@ -43,7 +43,7 @@ impl FormattedValue {
         match self {
             FormattedValue::Json(value) => Ok(serde_json::to_string_pretty(value)?),
             FormattedValue::Jsonl(value) => Ok(serde_json::to_string_pretty(value)?),
-            FormattedValue::Yaml(value) => Ok(serde_yaml::to_string(value)?),
+            //FormattedValue::Yaml(value) => Ok(serde_yaml::to_string(value)?),
             FormattedValue::Toml(value) => Ok(toml::to_string_pretty(value)?),
             FormattedValue::Text(value) => Ok(value.clone()),
         }
@@ -53,7 +53,7 @@ impl FormattedValue {
         match self {
             FormattedValue::Json(value) => Ok(serde_json::to_string(value)?),
             FormattedValue::Jsonl(value) => Ok(serde_json::to_string(value)?),
-            FormattedValue::Yaml(value) => Ok(serde_yaml::to_string(value)?),
+            //FormattedValue::Yaml(value) => Ok(serde_yaml::to_string(value)?),
             FormattedValue::Toml(value) => Ok(toml::to_string(value)?),
             FormattedValue::Text(value) => Ok(value.clone()),
         }
@@ -65,7 +65,7 @@ impl From<&FormattedValue> for ContentType {
         match value {
             FormattedValue::Json(_) => Self::Json,
             FormattedValue::Jsonl(_) => Self::Jsonl,
-            FormattedValue::Yaml(_) => Self::Yaml,
+            //FormattedValue::Yaml(_) => Self::Yaml,
             FormattedValue::Toml(_) => Self::Toml,
             FormattedValue::Text(_) => Self::Text,
         }
@@ -111,9 +111,9 @@ pub fn parse_formatted_value(input: &str) -> FormattedValue {
     if let Ok(values) = guess_jsonl(input) {
         return FormattedValue::Jsonl(values);
     }
-    if let Ok(value) = serde_yaml::from_str(input) {
-        return FormattedValue::Yaml(value);
-    }
+    // if let Ok(value) = serde_yaml::from_str(input) {
+    //     return FormattedValue::Yaml(value);
+    // }
     if let Ok(value) = toml::from_str(input) {
         return FormattedValue::Toml(value);
     }
