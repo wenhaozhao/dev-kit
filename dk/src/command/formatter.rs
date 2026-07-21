@@ -52,7 +52,13 @@ impl FormattedValue {
             FormattedValue::Json(value) => Ok(serde_json::to_string_pretty(value)?),
             FormattedValue::Jsonl(value) => Ok(serde_json::to_string_pretty(value)?),
             //FormattedValue::Yaml(value) => Ok(serde_yaml::to_string(value)?),
-            FormattedValue::Toml(value) => Ok(toml::to_string_pretty(value)?),
+            FormattedValue::Toml(value) => {
+                if let Ok(string) = toml::to_string_pretty(value) {
+                    Ok(string)
+                } else {
+                    FormattedValue::Json(serde_json::to_value(value.clone())?).to_string_pretty()
+                }
+            }
             FormattedValue::Text(value) => Ok(value.clone()),
         }
     }

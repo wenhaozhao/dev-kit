@@ -81,7 +81,14 @@ impl Json {
                 Ok(FormattedValue::Toml(value))
             }
             FormattedValue::Text(value) => {
-                Ok(FormattedValue::Text(value.clone()))
+                if let Some(query) = query.filter(|it| it.len() > 0) {
+                    let value = value.lines().enumerate().filter(|(_, it)| {
+                        it.contains(query)
+                    }).map(|(n, t)| [format!("line {n}"), t.to_string()]).collect_vec();
+                    Ok(FormattedValue::Json(serde_json::to_value(value)?))
+                } else {
+                    Ok(FormattedValue::Text(value.clone()))
+                }
             }
         }
     }
