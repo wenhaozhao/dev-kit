@@ -146,14 +146,22 @@ mod tests {
 2
 true
 null
-last
+"last"
         "#;
         match parse_formatted_value(input) {
             FormattedValue::Jsonl(values) => {
                 let value = serde_json::to_value(values).unwrap();
                 assert_eq!(
                     value,
-                    json!({"name": "devkit"})
+                    json!([
+  {
+    "name": "first"
+  },
+  2,
+  true,
+  null,
+  "last"
+])
                 );
             }
             _ => panic!("expected Jsonl")

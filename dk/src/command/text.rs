@@ -8,7 +8,7 @@ pub enum ContentType {
     Json,
     Jsonl,
     Toml,
-    Yaml,
+    // Yaml,
     Text,
 }
 
@@ -31,7 +31,7 @@ impl FromStr for ContentType {
             "json" => Ok(Self::Json),
             "jsonl" | "ndjson" => Ok(Self::Jsonl),
             "toml" => Ok(Self::Toml),
-            "yaml" | "yml" => Ok(Self::Yaml),
+            //"yaml" | "yml" => Ok(Self::Yaml),
             "text" | "plain" => Ok(Self::Text),
             other => Err(format!("unknown content type: {other}")),
         }
@@ -49,7 +49,7 @@ mod tests {
             (r#"{"name":"devkit"}"#, ContentType::Json),
             ("{\"a\":1}\n{\"b\":2}", ContentType::Jsonl),
             ("[package]\nname = \"devkit\"", ContentType::Toml),
-            ("name: devkit\nitems:\n  - one", ContentType::Yaml),
+            //("name: devkit\nitems:\n  - one", ContentType::Yaml),
             ("just ordinary prose", ContentType::Text),
         ];
         for (input, expected) in cases {
