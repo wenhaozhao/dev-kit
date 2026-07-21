@@ -182,12 +182,13 @@ async function queryJson(reload = false) {
   const currentTab = activeTab.value;
   if (!currentTab.jsonInput) {
     currentTab.jsonOutput = "";
+    currentTab.inputFormat = ""
     currentTab.jsonKeys = [];
     return;
   }
   currentTab.jsonQuerying = true;
   try {
-    currentTab.jsonOutput = await invoke(
+    const {data, intput_type} = await invoke(
         "jsonparser_query_json",
         {
           json: currentTab.jsonInput,
@@ -196,8 +197,12 @@ async function queryJson(reload = false) {
           tabId: currentTab.id,
         }
     );
+    currentTab.jsonOutput = data;
+    currentTab.inputFormat = intput_type;
+
   } catch (e) {
     currentTab.jsonOutput = "Error: " + e;
+    currentTab.inputFormat = ""
   } finally {
     currentTab.jsonQuerying = false
   }
@@ -282,6 +287,7 @@ async function saveJsonToFile() {
     }
   } catch (e) {
     currentTab.jsonOutput = "Error: " + e;
+    currentTab.inputFormat = ""
   }
 }
 

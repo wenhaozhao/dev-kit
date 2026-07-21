@@ -1,6 +1,7 @@
 use crate::command::text::ContentType;
 use anyhow::{anyhow, Context};
 use derive_more::{Deref, Display};
+use serde::Serialize;
 use serde_json::Value;
 
 pub fn format_text(input: &str, content_type: ContentType) -> crate::Result<String> {
@@ -31,7 +32,7 @@ pub fn normalize_plain_text(input: &str) -> String {
         .to_string()
 }
 
-#[derive(Debug, Clone, Display)]
+#[derive(Debug, Clone, Copy, Display, Serialize)]
 pub enum JsonInputType {
     Json,
     Jsonl,
@@ -41,7 +42,7 @@ pub enum JsonInputType {
 pub struct JsonValue {
     #[deref]
     value: Value,
-    intput_type: JsonInputType,
+    pub intput_type: JsonInputType,
 }
 
 /// Parses a JSON document, or a JSON Lines stream when the whole input is not JSON.
