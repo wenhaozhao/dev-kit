@@ -1,6 +1,5 @@
 use dev_kit::command::base64;
-use dev_kit::command::formatter::format_text;
-use dev_kit::command::json::parse_json_or_jsonl;
+use dev_kit::command::formatter::{format_text, parse_json_or_jsonl};
 use dev_kit::command::qrcode::generator::QrCodeImageVal;
 use dev_kit::command::qrcode::{OutputType, QrContent, QrEcLevel, QrVersion, generator};
 use dev_kit::command::text::{ContentType, detect_content_type};
