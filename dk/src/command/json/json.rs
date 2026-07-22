@@ -6,16 +6,14 @@ use serde::ser::Error;
 use serde::{Serialize, Serializer};
 use serde_json::Value;
 use std::collections::BTreeMap;
-use std::sync::Arc;
 use std::{env, fs};
 
 impl Json {
     pub fn search_paths(
-        &self,
+        json: &Value,
         query: Option<&str>,
         query_type: Option<QueryType>,
     ) -> crate::Result<Vec<JsonpathMatch>> {
-        let json = Arc::<Value>::try_from(self)?;
         let query = query
             .map(|it| it.trim())
             .filter(|it| !it.is_empty())
@@ -24,7 +22,7 @@ impl Json {
         match (kp, qt, query, query.is_empty()) {
             (_, _, _, true) => Ok(vec![]),
             (Some(key_pattern), _, _, false) => {
-                Ok(Self::search_key_actual(&json, &key_pattern, None))
+                Ok(Self::search_key_actual(json, &key_pattern, None))
             }
             (None, Some(QueryType::JsonPath), query, false) => {
                 let (prefix, keyword) = if let Some((prefix, keyword)) = query.rsplit_once(".") {
@@ -34,7 +32,7 @@ impl Json {
                 };
                 match (prefix, keyword, keyword.unwrap_or("").is_empty()) {
                     (prefix, Some(keyword), false) => Ok(Self::search_key_actual(
-                        &json,
+                        json,
                         &KeyPattern::guess(keyword)?,
                         Some(prefix),
                     )),
@@ -58,43 +56,85 @@ impl Json {
     }
 
     pub fn query(
-        &self,
+        input: &FormattedValue,
         query: Option<&str>,
         query_type: Option<QueryType>,
-        beauty: bool,
-    ) -> crate::Result<String> {
-        let json = Arc::<Value>::try_from(self)?;
-        let query_vals = Self::query_actual(&json, query, query_type)?;
-        match &query_vals {
-            QueryVals::Origin(_) | QueryVals::KeyPattern(_) => {
-                if beauty {
-                    Ok(serde_json::to_string_pretty(&query_vals)?)
-                } else {
-                    Ok(serde_json::to_string(&query_vals)?)
-                }
+    ) -> crate::Result<FormattedValue> {
+        match input {
+            FormattedValue::Json(value) => Ok(FormattedValue::Json(Self::query_inner(
+                value, query, query_type,
+            )?)),
+            FormattedValue::Jsonl(values) => {
+                let value = Value::Array(values.clone());
+                Ok(FormattedValue::Json(Self::query_inner(
+                    &value, query, query_type,
+                )?))
             }
-            QueryVals::JsonPath { query, vals } => {
-                if !query.contains("*") && vals.len() == 1 {
-                    let val = &vals[0];
-                    if beauty {
-                        Ok(serde_json::to_string_pretty(val)?)
-                    } else {
-                        Ok(serde_json::to_string(val)?)
-                    }
+            // FormattedValue::Yaml(value) => {
+            //     let value = serde_json::to_value(value.clone())?;
+            //     let query_result = Self::query_inner(&value, query, query_type)?;
+            //     let value = serde_json::from_value(query_result)?;
+            //     Ok(FormattedValue::Yaml(value))
+            // }
+            FormattedValue::Toml(value) => {
+                let value = serde_json::to_value(value)?;
+                let query_result = Self::query_inner(&value, query, query_type)?;
+                let value = serde_json::from_value(query_result)?;
+                Ok(FormattedValue::Toml(value))
+            }
+            FormattedValue::Text(value) => {
+                if let Some(query) = query.filter(|it| !it.is_empty()) {
+                    let value = value
+                        .lines()
+                        .enumerate()
+                        .filter(|(_, it)| it.contains(query))
+                        .map(|(n, t)| [format!("line {n}"), t.to_string()])
+                        .collect_vec();
+                    Ok(FormattedValue::Json(serde_json::to_value(value)?))
                 } else {
-                    if beauty {
-                        Ok(serde_json::to_string_pretty(&query_vals)?)
-                    } else {
-                        Ok(serde_json::to_string(&query_vals)?)
-                    }
+                    Ok(FormattedValue::Text(value.clone()))
                 }
             }
         }
     }
 
+    fn query_inner(
+        value: &Value,
+        query: Option<&str>,
+        query_type: Option<QueryType>,
+    ) -> crate::Result<Value> {
+        let mut query_vals = Self::query_actual(value, query, query_type)?;
+        match &mut query_vals {
+            QueryVals::Origin(_) | QueryVals::KeyPattern(_) => {
+                Ok(serde_json::to_value(query_vals)?)
+            }
+            QueryVals::JsonPath { query, vals } => {
+                if !query.contains("*") && vals.len() == 1 {
+                    Ok(vals.remove(0))
+                } else {
+                    Ok(serde_json::to_value(query_vals)?)
+                }
+            }
+        }
+    }
+
+    pub fn query_beauty(
+        input: &FormattedValue,
+        query: Option<&str>,
+        query_type: Option<QueryType>,
+        beauty: bool,
+    ) -> crate::Result<String> {
+        let value = Self::query(input, query, query_type)?;
+        if beauty {
+            Ok(value.to_string_pretty()?)
+        } else {
+            Ok(value.to_string()?)
+        }
+    }
+
     pub fn diff(
-        &self,
-        other: &Self,
+        left: &FormattedValue,
+        right: &FormattedValue,
         query: Option<&str>,
         query_type: Option<QueryType>,
         diff_tool: Option<DiffTool>,
@@ -105,14 +145,12 @@ impl Json {
         if tmp_dir.exists() {
             fs::remove_dir_all(&tmp_dir)?;
         }
-        let left = self;
-        let right = other;
         fs::create_dir_all(&tmp_dir)?;
-        let left = left.diff_prepare(query, query_type)?;
+        let left = Self::diff_prepare(left, query, query_type)?;
         let left_path = tmp_dir.join("left.json");
         fs::write(&left_path, left)?;
         println!("write left to file {}", left_path.display());
-        let right = right.diff_prepare(query, query_type)?;
+        let right = Self::diff_prepare(right, query, query_type)?;
         let right_path = tmp_dir.join("right.json");
         fs::write(&right_path, right)?;
         println!("write right to file {}", right_path.display());
@@ -297,13 +335,11 @@ impl Json {
     }
 
     fn diff_prepare(
-        &self,
+        input: &FormattedValue,
         query: Option<&str>,
         query_type: Option<QueryType>,
     ) -> crate::Result<String> {
-        let json = Arc::<Value>::try_from(self)?;
-        let array = Self::query_actual(&json, query, query_type)?;
-        let pretty = serde_json::to_string_pretty(&array)?;
+        let pretty = Self::query_beauty(input, query, query_type, true)?;
         Ok(pretty)
     }
 
@@ -334,6 +370,7 @@ pub enum JsonpathMatch {
 }
 
 mod jsonpath_match;
+use crate::command::formatter::FormattedValue;
 pub use jsonpath_match::*;
 
 lazy_static! {

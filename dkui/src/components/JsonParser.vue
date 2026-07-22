@@ -30,6 +30,7 @@ async function invoke_jsonparser_init_tabs() {
         jsonOutput: resp.json_output || "",
         jsonQuery: resp.json_query || "",
         jsonQuerying: false,
+        inputFormat: "",
         jsonKeys: [],
         showSuggestions: false,
         selectedIndex: resp.selected_index,
@@ -53,6 +54,7 @@ async function invoke_jsonparser_add_tab() {
       jsonOutput: "",
       jsonQuery: "",
       jsonQuerying: false,
+      inputFormat: "",
       jsonKeys: [],
       showSuggestions: false,
       selectedIndex: resp.selected_index,
@@ -110,29 +112,7 @@ const parsedJsonOutput = computed(() => {
   }
 });
 
-const inputFormat = computed(() => {
-  const input = activeTab.value?.jsonInput?.trim();
-  if (!input) return "";
-  try {
-    JSON.parse(input);
-    return "JSON";
-  } catch (_) {
-    const records = input.split(/\r?\n/).filter((line) => line.trim());
-    if (records.length > 0 && records.every((line) => {
-      try {
-        JSON.parse(line);
-        return true;
-      } catch (_) {
-        return false;
-      }
-    })) {
-      return "JSONL";
-    }
-    // Non-JSON input can be a source expression (curl, URL, file path, or
-    // HTTP request text) that the DevKit kernel resolves to JSON/JSONL.
-    return "Text";
-  }
-});
+const inputFormat = computed(() => activeTab.value?.inputFormat || "");
 
 function scrollTabs(direction) {
   if (!tabsScrollContainer.value) return;
@@ -202,12 +182,12 @@ async function queryJson(reload = false) {
   const currentTab = activeTab.value;
   if (!currentTab.jsonInput) {
     currentTab.jsonOutput = "";
+    currentTab.inputFormat = ""
     currentTab.jsonKeys = [];
-    return;
   }
   currentTab.jsonQuerying = true;
   try {
-    currentTab.jsonOutput = await invoke(
+    const {data, input_type} = await invoke(
         "jsonparser_query_json",
         {
           json: currentTab.jsonInput,
@@ -216,8 +196,12 @@ async function queryJson(reload = false) {
           tabId: currentTab.id,
         }
     );
+    currentTab.jsonOutput = data;
+    currentTab.inputFormat = input_type;
+
   } catch (e) {
     currentTab.jsonOutput = "Error: " + e;
+    currentTab.inputFormat = ""
   } finally {
     currentTab.jsonQuerying = false
   }
@@ -302,6 +286,7 @@ async function saveJsonToFile() {
     }
   } catch (e) {
     currentTab.jsonOutput = "Error: " + e;
+    currentTab.inputFormat = ""
   }
 }
 
@@ -354,7 +339,6 @@ onMounted(async () => {
 async function copyToClipboard(e) {
   let text = e.target.innerText;
   if (typeof(text) === 'string') {
-    debugger
     if (text.startsWith('"') && text.endsWith('"')) {
       text = text.slice(1,-1);
     }
@@ -491,12 +475,15 @@ async function copyOutputToClipboard(e) {
         </div>
         <div v-if="activeTab.jsonOutput.startsWith('Error: ')" class="error-msg">{{ activeTab.jsonOutput }}</div>
         <vue-json-pretty
-          v-else
+          v-else-if="inputFormat==='json' || inputFormat==='jsonl'"
           :data="parsedJsonOutput"
           :show-length="true"
           :deep="3"
           @dblclick="copyToClipboard"
         />
+        <div v-else @dblclick="copyToClipboard">
+          {{activeTab.jsonOutput}}
+        </div>
       </div>
     </div>
   </section>

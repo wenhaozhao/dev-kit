@@ -1,6 +1,6 @@
 mod jetbrains_http;
-
-use anyhow::anyhow;
+use crate::command::formatter::{FormattedValue, parse_formatted_value};
+use anyhow::{Context, anyhow};
 use derive_more::Display;
 pub use jetbrains_http::*;
 use lazy_static::lazy_static;
@@ -14,7 +14,7 @@ pub enum HttpRequest {
     JetBrainsHttp(JetBrainsHttp),
     Uri(Url),
     #[display("{}", _0.display())]
-    FilePath(PathBuf),
+    Filepath(PathBuf),
 }
 
 impl TryFrom<&HttpRequest> for Url {
@@ -24,7 +24,7 @@ impl TryFrom<&HttpRequest> for Url {
         match value {
             HttpRequest::JetBrainsHttp(it) => Url::try_from(&***it),
             HttpRequest::Uri(url) => Ok(url.clone()),
-            HttpRequest::FilePath(path) => Url::from_file_path(path)
+            HttpRequest::Filepath(path) => Url::from_file_path(path)
                 .map_err(|_| anyhow!("Invalid file path: {}", path.display())),
         }
     }
@@ -40,7 +40,7 @@ impl FromStr for HttpRequest {
             let schema = url.scheme().to_lowercase();
             match schema.as_str() {
                 "https" | "http" => Ok(Self::Uri(url)),
-                "file" => Ok(Self::FilePath(PathBuf::from_str(url.path())?)),
+                "file" => Ok(Self::Filepath(PathBuf::from_str(url.path())?)),
                 _ => Err(anyhow!("Not a valid url: {value}")),
             }
         } else {
@@ -59,7 +59,7 @@ lazy_static! {
     };
 }
 
-impl TryFrom<&HttpRequest> for serde_json::Value {
+impl TryFrom<&HttpRequest> for FormattedValue {
     type Error = anyhow::Error;
 
     fn try_from(http_request: &HttpRequest) -> Result<Self, Self::Error> {
@@ -84,10 +84,7 @@ impl TryFrom<&HttpRequest> for serde_json::Value {
                     });
                     h.await
                 })??;
-                serde_json::from_str(&text).map_err(|err| {
-                    log::debug!("{}", err);
-                    anyhow!("Invalid json format")
-                })
+                Ok(parse_formatted_value(&text))
             }
             HttpRequest::Uri(url) => {
                 let url = url.clone();
@@ -109,18 +106,12 @@ impl TryFrom<&HttpRequest> for serde_json::Value {
                     });
                     h.await
                 })??;
-                serde_json::from_str(&text).map_err(|err| {
-                    log::debug!("{}", err);
-                    anyhow!("Invalid json format")
-                })
+                Ok(parse_formatted_value(&text))
             }
-            HttpRequest::FilePath(path) => {
-                let file = fs::File::open(&path)
-                    .map_err(|err| anyhow!("open file {} failed, {}", path.display(), err))?;
-                serde_json::from_reader::<_, serde_json::Value>(file).map_err(|err| {
-                    log::debug!("{}", err);
-                    anyhow!("Invalid json format")
-                })
+            HttpRequest::Filepath(path) => {
+                let text = fs::read_to_string(&path)
+                    .with_context(|| format!("read file {} failed", path.display()))?;
+                Ok(parse_formatted_value(&text))
             }
         }
     }

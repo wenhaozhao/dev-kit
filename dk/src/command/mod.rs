@@ -53,8 +53,6 @@ pub mod formatter;
 mod http_parser;
 pub mod json;
 pub mod qrcode;
-pub mod text;
-pub mod textdiff;
 pub mod time;
 pub mod uri;
 

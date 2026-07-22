@@ -1,35 +1,37 @@
 # DevKit v0.2.1 开发计划
 
-> 版本主题：Homebrew 安装验收与发布链路加固
+> 版本主题：内核驱动的统一内容解析与瘦前端交互
 >
-> 前置条件：`v0.2.0` 主干功能、Release 工作流和文档已完成并发布。
+> 当前原则：输入类型由 DevKit Rust 内核解析结果决定，UI 不自行执行 JSON/JSONL 检测。
 
 ## 目标
 
-- 创建并配置 `wenhaozhao/homebrew-dev-kit` Tap。
-- 以 `v0.2.1` Release 资产生成并更新 `devkit` Formula。
-- 在 macOS Apple Silicon 与 Intel 环境验证安装、升级和版本一致性。
-- 记录安装失败时的回滚、修复和重试流程。
+- 统一 JSON、JSONL、TOML 与纯文本的内核表示和格式化输出。
+- 让 JSON Parser 与 Content Diff 使用内核返回的 `input_type`，避免 Fat UI 在大内容上重复解析。
+- 保持输入框允许任意可导出 JSON 的来源表达式，包括文件路径、URL、curl 和 JetBrains HTTP 请求。
+- 以可接受的解析优先级处理内容：先尝试完整 JSON，再尝试 JSONL，最后回退到 TOML/纯文本。
 
 ## 任务
 
 | ID | 任务 | 状态 | 验收 |
 |---|---|---|---|
-| H01 | 创建 Tap 并配置 Actions 写入凭据 | Planned | Release 工作流可更新 Formula |
-| H02 | 发布 v0.2.1 测试资产并生成校验值 | Planned | Formula SHA256 与资产一致 |
-| H03 | 验证安装与升级 | Planned | `brew tap`、`brew install`、`devkit --version` 通过 |
-| H04 | 验证 Intel/Apple Silicon 与回滚流程 | Planned | 两种架构可安装，失败可恢复上一 Formula |
+| K01 | 引入 `FormattedValue`，统一 JSON/JSONL/TOML/文本表示 | Done | Rust workspace 测试通过 |
+| K02 | JSON Parser 返回内核解析类型并由 UI 展示 | Done | `jsonparser_query_json` 返回 `data` 与 `input_type` |
+| K03 | Content Diff 接入统一格式解析与查询 | Done | JSON/TOML/文本输入可由内核处理 |
+| K04 | JSONL 解析优先级与兼容性验证 | Done | 先 JSON、后 JSONL，失败后回退文本 |
+| K05 | 内联文本对比 | Deferred | v0.2.1 暂不支持，使用外部 diff 工具 |
+| H01 | Homebrew Tap、Formula、安装升级验收 | Deferred | 转入后续发布/安装专项计划 |
 
-## 验收命令
+## 已确认的设计约束
+
+- 不在 Vue/JavaScript 层调用 `JSON.parse` 或通过换行猜测输入类型。
+- JSONL 的识别属于内核内容解析流程；当前实现先尝试完整 JSON，再尝试 JSONL。
+- 内联对比功能暂不支持，不作为 v0.2.1 的阻塞项。
+- 发布前统一更新 Cargo、npm 与 Tauri 的版本号为 `0.2.1`。
+
+## 验证命令
 
 ```bash
-brew tap wenhaozhao/dev-kit
-brew install devkit
-devkit --version
-brew upgrade devkit
+cargo test --workspace
+(cd dkui && npm run build)
 ```
-
-## 不包含
-
-- 不修改当前 `v0.2.0` 的版本号或 Release tag。
-- 不以 Homebrew 验收阻塞 `v0.2.0` 主干功能开发。

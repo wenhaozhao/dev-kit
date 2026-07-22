@@ -25,9 +25,8 @@ const jsonRightQuerying = ref(false);
 const diffTool = ref("");
 const availableDiffTools = ref([]);
 const inlineDiffLines = ref([]);
-const contentTypes = ["auto", "json", "jsonl", "toml", "yaml", "rust", "javascript", "typescript", "java", "c", "cpp", "lua", "text"];
-const leftType = ref("auto");
-const rightType = ref("auto");
+const leftType = ref("");
+const rightType = ref("");
 const jsonKeys = ref([]);
 const selectedIndex = ref(-1);
 const showSuggestions = ref(false);
@@ -44,10 +43,12 @@ function syncScroll(event, target) {
   isSyncing = true;
   target.scrollTop = event.target.scrollTop;
   target.scrollLeft = event.target.scrollLeft;
-  requestAnimationFrame(() => { isSyncing = false; });
+  requestAnimationFrame(() => {
+    isSyncing = false;
+  });
 }
 
-const { debounce } = useDebounce();
+const {debounce} = useDebounce();
 
 const parsedJsonOutput = computed(() => {
   if (!jsonLeftOutput.value || jsonLeftOutput.value.startsWith("Error: ")) {
@@ -72,8 +73,8 @@ const parsedJsonRightOutput = computed(() => {
 });
 
 const inlineDiffText = computed(() => inlineDiffLines.value
-  .map((line) => `${line.kind === 'insert' ? '+' : line.kind === 'delete' ? '-' : ' '} ${line.content}`)
-  .join("\n"));
+    .map((line) => `${line.kind === 'insert' ? '+' : line.kind === 'delete' ? '-' : ' '} ${line.content}`)
+    .join("\n"));
 
 onMounted(async () => {
   try {
@@ -94,7 +95,9 @@ onMounted(async () => {
       leftTextarea.value.style.height = `${height}px`;
       rightTextarea.value.style.height = `${height}px`;
     }
-    setTimeout(() => { isSyncing = false; }, 0);
+    setTimeout(() => {
+      isSyncing = false;
+    }, 0);
   };
 
   let observer = new ResizeObserver(syncHeight);
@@ -182,21 +185,24 @@ async function openRightFile() {
 async function queryLeftJson(reload = false) {
   if (!jsonLeftInput.value) {
     jsonLeftOutput.value = "";
+    leftType.value = ""
     jsonKeys.value = [];
-    return;
   }
   jsonLeftQuerying.value = true;
   try {
-    jsonLeftOutput.value = await invoke(
+    const {data, input_type} = await invoke(
         "jsondiff_query_json",
         {
-          json: jsonLeftInput.value,
+          input: jsonLeftInput.value,
           query: jsonQuery.value,
           reload,
         }
     );
+    jsonLeftOutput.value = data;
+    leftType.value = input_type;
   } catch (e) {
     jsonLeftOutput.value = "Error: " + e;
+    leftType.value = ""
   } finally {
     jsonLeftQuerying.value = false;
   }
@@ -206,20 +212,23 @@ async function queryLeftJson(reload = false) {
 async function queryRightJson(reload = false) {
   if (!jsonRightInput.value) {
     jsonRightOutput.value = "";
-    return;
+    rightType.value = ""
   }
   jsonRightQuerying.value = true;
   try {
-    jsonRightOutput.value = await invoke(
+    const {data, input_type} = await invoke(
         "jsondiff_query_json",
         {
-          json: jsonRightInput.value,
+          input: jsonRightInput.value,
           query: jsonQuery.value,
           reload
         }
     );
+    jsonRightOutput.value = data;
+    rightType.value = input_type;
   } catch (e) {
     jsonRightOutput.value = "Error: " + e;
+    rightType.value = ""
   } finally {
     jsonRightQuerying.value = false;
   }
@@ -247,7 +256,7 @@ function appendToQuery(key) {
   let val = jsonQuery.value || "";
   if (key.startsWith("$")) {
     val = key;
-  }else{
+  } else {
     if (val.startsWith("$")) {
       if (val.endsWith(".")) {
         val += key;
@@ -288,21 +297,8 @@ async function diffJson() {
     await invoke("jsondiff_diff_json", {
       left: jsonLeftInput.value,
       right: jsonRightInput.value,
-      leftType: leftType.value === "auto" ? null : leftType.value,
-      rightType: rightType.value === "auto" ? null : rightType.value,
       query: jsonQuery.value || null,
       diffTool: diffTool.value
-    });
-  } catch (e) {
-    jsonLeftOutput.value = "Error: " + e;
-  }
-}
-
-async function showInlineDiff() {
-  try {
-    inlineDiffLines.value = await invoke("textdiff_lines", {
-      left: jsonLeftInput.value,
-      right: jsonRightInput.value,
     });
   } catch (e) {
     jsonLeftOutput.value = "Error: " + e;
@@ -315,10 +311,10 @@ async function copyInlineDiff() {
 
 async function saveInlineDiff() {
   const path = await save({
-    filters: [{ name: "Text", extensions: ["txt", "diff"] }],
+    filters: [{name: "Text", extensions: ["txt", "diff"]}],
   });
   if (path) {
-    await invoke("save_to_file", { path, content: inlineDiffText.value });
+    await invoke("save_to_file", {path, content: inlineDiffText.value});
   }
 }
 
@@ -334,7 +330,7 @@ async function saveJsonToFile(content) {
       }]
     });
     if (path) {
-      await invoke("save_to_file", { path, content });
+      await invoke("save_to_file", {path, content});
     }
   } catch (e) {
     console.error("Save failed:", e);
@@ -350,49 +346,55 @@ watch([jsonLeftInput, jsonRightInput, jsonQuery], debounce(() => {
   queryRightJson();
   emit('update:leftJson', jsonLeftInput.value);
   emit('update:query', jsonQuery.value);
-},1000));
+}, 1000));
 
 watch(() => props.initialLeftJson, debounce((newVal) => {
   if (newVal !== jsonLeftInput.value) {
     jsonLeftInput.value = newVal || "";
   }
-},100));
+}, 100));
 
 watch(() => props.initialQuery, debounce((newVal) => {
   if (newVal !== jsonQuery.value) {
     jsonQuery.value = newVal || "";
   }
-},100));
+}, 100));
 </script>
 
 <template>
   <section class="tool-section">
     <div class="json-inputs">
       <div class="textarea-container" :class="{ dragging: isDraggingLeft }"
-        @dragover="isDraggingLeft = true"
-        @dragleave="isDraggingLeft = false"
-        @drop="isDraggingLeft = false">
-        <textarea id="leftTextarea" ref="leftTextarea" v-model="jsonLeftInput" placeholder="Enter JSON (Left)..." rows="5" @scroll="syncScroll($event, rightTextarea)"></textarea>
-        <select v-model="leftType" class="content-type" aria-label="Left content type">
-          <option v-for="type in contentTypes" :key="type" :value="type">{{ type }}</option>
-        </select>
+           @dragover="isDraggingLeft = true"
+           @dragleave="isDraggingLeft = false"
+           @drop="isDraggingLeft = false">
+        <textarea id="leftTextarea" ref="leftTextarea" v-model="jsonLeftInput" placeholder="Enter JSON (Left)..."
+                  rows="5" @scroll="syncScroll($event, rightTextarea)"></textarea>
+        <span v-if="leftType" class="format-badge">
+          {{ leftType }}
+        </span>
         <div class="textarea-actions">
-          <button v-if="jsonLeftInput" class="action-button" @click="queryLeftJson(true)" title="Run" :disabled="jsonLeftQuerying">
-            <svg v-if="!jsonLeftQuerying" viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <button v-if="jsonLeftInput" class="action-button" @click="queryLeftJson(true)" title="Run"
+                  :disabled="jsonLeftQuerying">
+            <svg v-if="!jsonLeftQuerying" viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor"
+                 stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
               <polygon points="5 3 19 12 5 21 5 3"></polygon>
             </svg>
-            <svg v-else class="spinner" viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <svg v-else class="spinner" viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor"
+                 stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
               <path d="M21 12a9 9 0 1 1-6.219-8.56"></path>
             </svg>
           </button>
           <button class="action-button" @click="openLeftFile" title="Open File">
-            <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2"
+                 stroke-linecap="round" stroke-linejoin="round">
               <path d="M13 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V9z"></path>
               <polyline points="13 2 13 9 20 9"></polyline>
             </svg>
           </button>
           <button v-if="jsonLeftInput" class="action-button" @click="jsonLeftInput = ''" title="Clear">
-            <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2"
+                 stroke-linecap="round" stroke-linejoin="round">
               <line x1="18" y1="6" x2="6" y2="18"></line>
               <line x1="6" y1="6" x2="18" y2="18"></line>
             </svg>
@@ -400,30 +402,36 @@ watch(() => props.initialQuery, debounce((newVal) => {
         </div>
       </div>
       <div class="textarea-container" :class="{ dragging: isDraggingRight }"
-        @dragover="isDraggingRight = true"
-        @dragleave="isDraggingRight = false"
-        @drop="isDraggingRight = false">
-        <textarea id="rightTextarea" ref="rightTextarea" v-model="jsonRightInput" placeholder="Enter JSON (Right)..." rows="5" @scroll="syncScroll($event, leftTextarea)"></textarea>
-        <select v-model="rightType" class="content-type" aria-label="Right content type">
-          <option v-for="type in contentTypes" :key="type" :value="type">{{ type }}</option>
-        </select>
+           @dragover="isDraggingRight = true"
+           @dragleave="isDraggingRight = false"
+           @drop="isDraggingRight = false">
+        <textarea id="rightTextarea" ref="rightTextarea" v-model="jsonRightInput" placeholder="Enter JSON (Right)..."
+                  rows="5" @scroll="syncScroll($event, leftTextarea)"></textarea>
+        <span v-if="rightType" class="format-badge">
+          {{ rightType }}
+        </span>
         <div class="textarea-actions">
-          <button v-if="jsonRightInput" class="action-button" @click="queryRightJson(true)" title="Run" :disabled="jsonRightQuerying">
-            <svg v-if="!jsonRightQuerying" viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <button v-if="jsonRightInput" class="action-button" @click="queryRightJson(true)" title="Run"
+                  :disabled="jsonRightQuerying">
+            <svg v-if="!jsonRightQuerying" viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor"
+                 stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
               <polygon points="5 3 19 12 5 21 5 3"></polygon>
             </svg>
-            <svg v-else class="spinner" viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <svg v-else class="spinner" viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor"
+                 stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
               <path d="M21 12a9 9 0 1 1-6.219-8.56"></path>
             </svg>
           </button>
           <button class="action-button" @click="openRightFile" title="Open File">
-            <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2"
+                 stroke-linecap="round" stroke-linejoin="round">
               <path d="M13 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V9z"></path>
               <polyline points="13 2 13 9 20 9"></polyline>
             </svg>
           </button>
           <button v-if="jsonRightInput" class="action-button" @click="jsonRightInput = ''" title="Clear">
-            <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2"
+                 stroke-linecap="round" stroke-linejoin="round">
               <line x1="18" y1="6" x2="6" y2="18"></line>
               <line x1="6" y1="6" x2="18" y2="18"></line>
             </svg>
@@ -433,11 +441,10 @@ watch(() => props.initialQuery, debounce((newVal) => {
     </div>
     <div class="row query-row" ref="queryContainer">
       <input v-model="jsonQuery" placeholder="json path/key/val filter"
-        @input="showSuggestions = true"
-        @focus="showSuggestions = true"
-        @keydown="handleKeyDown" />
+             @input="showSuggestions = true"
+             @focus="showSuggestions = true"
+             @keydown="handleKeyDown"/>
       <div class="diff-actions">
-        <button @click="showInlineDiff">Show Diff</button>
         <select v-model="diffTool" v-if="availableDiffTools.length > 0">
           <option v-for="tool in availableDiffTools" :key="tool" :value="tool">
             {{ tool }}
@@ -449,9 +456,9 @@ watch(() => props.initialQuery, debounce((newVal) => {
       </div>
       <div v-if="showSuggestions && jsonKeys.length > 0" class="suggestions-dropdown">
         <div v-for="(key, index) in jsonKeys" :key="key.path"
-          class="suggestion-item"
-          :class="{ active: index === selectedIndex }"
-          @mousedown.prevent="appendToQuery(key.path)">
+             class="suggestion-item"
+             :class="{ active: index === selectedIndex }"
+             @mousedown.prevent="appendToQuery(key.path)">
           {{ key.path }} {{ !!key.val ? ` -> ${key.val}` : '' }}
         </div>
       </div>
@@ -459,8 +466,10 @@ watch(() => props.initialQuery, debounce((newVal) => {
     <div class="json-outputs">
       <div v-if="jsonLeftOutput" class="output">
         <div class="output-actions">
-          <button v-if="!jsonLeftOutput.startsWith('Error: ')" class="action-button" @click="saveJsonToFile(jsonLeftOutput)" title="Save to File">
-            <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <button v-if="!jsonLeftOutput.startsWith('Error: ')" class="action-button"
+                  @click="saveJsonToFile(jsonLeftOutput)" title="Save to File">
+            <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2"
+                 stroke-linecap="round" stroke-linejoin="round">
               <path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"></path>
               <polyline points="17 21 17 13 7 13 7 21"></polyline>
               <polyline points="7 3 7 8 15 8"></polyline>
@@ -469,16 +478,21 @@ watch(() => props.initialQuery, debounce((newVal) => {
         </div>
         <div v-if="jsonLeftOutput.startsWith('Error: ')" class="error-msg">{{ jsonLeftOutput }}</div>
         <vue-json-pretty
-          v-else
-          :data="parsedJsonOutput"
-          :show-length="true"
-          :deep="3"
+            v-else-if="leftType==='json'||leftType==='jsonl'"
+            :data="parsedJsonOutput"
+            :show-length="true"
+            :deep="3"
         />
+        <div v-else>
+          {{jsonLeftOutput}}
+        </div>
       </div>
       <div v-if="jsonRightOutput" class="output">
         <div class="output-actions">
-          <button v-if="!jsonRightOutput.startsWith('Error: ')" class="action-button" @click="saveJsonToFile(jsonRightOutput)" title="Save to File">
-            <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <button v-if="!jsonRightOutput.startsWith('Error: ')" class="action-button"
+                  @click="saveJsonToFile(jsonRightOutput)" title="Save to File">
+            <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2"
+                 stroke-linecap="round" stroke-linejoin="round">
               <path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"></path>
               <polyline points="17 21 17 13 7 13 7 21"></polyline>
               <polyline points="7 3 7 8 15 8"></polyline>
@@ -487,11 +501,14 @@ watch(() => props.initialQuery, debounce((newVal) => {
         </div>
         <div v-if="jsonRightOutput.startsWith('Error: ')" class="error-msg">{{ jsonRightOutput }}</div>
         <vue-json-pretty
-          v-else
-          :data="parsedJsonRightOutput"
-          :show-length="true"
-          :deep="3"
+            v-else-if="rightType==='json'||rightType==='jsonl'"
+            :data="parsedJsonRightOutput"
+            :show-length="true"
+            :deep="3"
         />
+        <div v-else>
+          {{jsonRightOutput}}
+        </div>
       </div>
     </div>
     <div v-if="inlineDiffLines.length" class="inline-diff" aria-label="Text diff result">
@@ -557,6 +574,17 @@ watch(() => props.initialQuery, debounce((newVal) => {
   left: 8px;
   width: auto;
   padding: 3px 6px;
+  font-size: 12px;
+}
+
+.format-badge {
+  position: absolute;
+  bottom: 8px;
+  right: 8px;
+  padding: 2px 6px;
+  border-radius: 4px;
+  background: #e6f4ea;
+  color: #137333;
   font-size: 12px;
 }
 
@@ -648,9 +676,17 @@ watch(() => props.initialQuery, debounce((newVal) => {
   user-select: none;
 }
 
-.diff-line code { overflow-x: auto; }
-.diff-line.insert { background: #e6ffec; }
-.diff-line.delete { background: #ffebe9; }
+.diff-line code {
+  overflow-x: auto;
+}
+
+.diff-line.insert {
+  background: #e6ffec;
+}
+
+.diff-line.delete {
+  background: #ffebe9;
+}
 
 .diff-actions select {
   border-top-right-radius: 0;
@@ -723,7 +759,7 @@ button:hover {
   max-height: 200px;
   overflow-y: auto;
   z-index: 1000;
-  box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+  box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
 }
 
 .suggestion-item {
@@ -741,44 +777,56 @@ button:hover {
   background-color: #1e1e1e;
   color: #d4d4d4;
 }
+
 :root.dark-mode :deep(.vjs-tree-node:hover) {
   background-color: #3e3e3e;
 }
+
 :root.dark-mode :deep(.vjs-value__string) {
   color: #ce9178;
 }
+
 :root.dark-mode :deep(.vjs-value__number) {
   color: #b5cea8;
 }
+
 :root.dark-mode :deep(.vjs-key) {
   color: #9cdcfe;
 }
+
 :root.dark-mode .tool-section {
   border-color: #444;
 }
+
 :root.dark-mode input, :root.dark-mode textarea, :root.dark-mode select {
   background-color: #2a2a2a;
   border-color: #444;
   color: #d4d4d4;
 }
+
 :root.dark-mode .suggestions-dropdown {
   background-color: #2a2a2a;
   border-color: #444;
 }
+
 :root.dark-mode .suggestion-item {
   color: #d4d4d4;
 }
+
 :root.dark-mode .suggestion-item:hover, :root.dark-mode .suggestion-item.active {
   background-color: #3e3e3e;
 }
+
 :root.dark-mode .action-button {
   background: rgba(255, 255, 255, 0.05);
   color: #aaa;
 }
+
 :root.dark-mode .action-button:hover {
   background: rgba(255, 255, 255, 0.15);
   color: #fff;
 }
+
 :root.dark-mode .textarea-container.dragging textarea {
   background-color: rgba(0, 122, 255, 0.1);
 }

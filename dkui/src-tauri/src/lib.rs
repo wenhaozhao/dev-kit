@@ -71,7 +71,6 @@ fn tauri_init(app_state: AppState) -> Result<(), String> {
             jsondiff_query_json,
             jsondiff_search_json_paths,
             jsondiff_diff_json,
-            textdiff_lines,
             get_available_diff_tools,
             decode_uri,
             encode_uri,

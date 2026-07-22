@@ -1,10 +1,10 @@
 use crate::SharedAppState;
 use crate::components::json::jsonparser::JsonParserTabState;
 use crate::components::jsonparser::JsonParserTab;
-use dev_kit::command::json::{DiffTool, JsonpathMatch, QueryType};
-use dev_kit::command::text::ContentType;
-use dev_kit::command::textdiff::{DiffLine, diff_lines};
+use dev_kit::command::formatter::FormattedValueType;
+use dev_kit::command::json::{DiffTool, Json, JsonpathMatch, QueryType};
 use itertools::Itertools;
+use serde::Serialize;
 use std::str::FromStr;
 
 pub mod jsondiff;
@@ -50,20 +50,29 @@ pub async fn jsonparser_query_json(
     query_type: Option<String>,
     reload: bool,
     tab_id: String,
-) -> Result<String, String> {
+) -> Result<JsonparserQueryJson, String> {
     let mut app_state = state.write().await;
     let value = app_state
         .jsonparser
         .get_or_parse(&tab_id, &json, reload)
         .await?;
-    let arr = value
-        .query(
-            query.as_deref(),
-            query_type.and_then(|s| QueryType::from_str(&s).ok()),
-            true,
-        )
-        .map_err(|e| e.to_string())?;
-    Ok(arr)
+    let arr = Json::query_beauty(
+        value,
+        query.as_deref(),
+        query_type.and_then(|s| QueryType::from_str(&s).ok()),
+        true,
+    )
+    .map_err(|e| e.to_string())?;
+    Ok(JsonparserQueryJson {
+        data: arr,
+        input_type: value.type_(),
+    })
+}
+
+#[derive(Serialize)]
+pub struct JsonparserQueryJson {
+    data: String,
+    input_type: FormattedValueType,
 }
 
 #[tauri::command]
@@ -83,21 +92,30 @@ pub async fn jsonparser_search_json_paths(
 #[tauri::command]
 pub async fn jsondiff_query_json(
     state: tauri::State<'_, SharedAppState>,
-    json: String,
+    input: String,
     query: Option<String>,
     query_type: Option<String>,
     reload: bool,
-) -> Result<String, String> {
+) -> Result<JsondiffQueryJson, String> {
     let app_state = state.write().await;
-    let value = app_state.jsondiff.get_or_parse(&json, reload).await?;
-    let arr = value
-        .query(
-            query.as_deref(),
-            query_type.and_then(|s| QueryType::from_str(&s).ok()),
-            true,
-        )
-        .map_err(|e| e.to_string())?;
-    Ok(arr)
+    let value = app_state.jsondiff.get_or_parse(&input, reload).await?;
+    let arr = Json::query_beauty(
+        &value,
+        query.as_deref(),
+        query_type.and_then(|s| QueryType::from_str(&s).ok()),
+        true,
+    )
+    .map_err(|e| e.to_string())?;
+    Ok(JsondiffQueryJson {
+        data: arr,
+        input_type: value.type_(),
+    })
+}
+
+#[derive(Serialize)]
+pub struct JsondiffQueryJson {
+    data: String,
+    input_type: FormattedValueType,
 }
 
 #[tauri::command]
@@ -108,9 +126,10 @@ pub async fn jsondiff_search_json_paths(
     query_type: Option<String>,
 ) -> Result<Vec<JsonpathMatch>, String> {
     let app_state = state.read().await;
-    let value = app_state.jsondiff.get_or_parse(&json, false).await?;
+    let formatted_value = app_state.jsondiff.get_or_parse(&json, false).await?;
+    let value = formatted_value.try_into().map_err(|err| format!("{err}"))?;
     let query_type = query_type.and_then(|s| QueryType::from_str(&s).ok());
-    match value.search_paths(query.as_deref(), query_type) {
+    match Json::search_paths(&value, query.as_deref(), query_type) {
         Ok(arr) => Ok(arr.into_iter().collect_vec()),
         Err(err) => Err(err.to_string()),
     }
@@ -134,9 +153,14 @@ pub async fn jsondiff_diff_json(
     } else {
         DiffTool::default()
     };
-    left_val
-        .diff(&right_val, query.as_deref(), query_type, Some(tool))
-        .map_err(|e| e.to_string())?;
+    Json::diff(
+        &left_val,
+        &right_val,
+        query.as_deref(),
+        query_type,
+        Some(tool),
+    )
+    .map_err(|e| e.to_string())?;
     Ok(())
 }
 
@@ -147,19 +171,4 @@ pub fn get_available_diff_tools() -> Vec<String> {
         .filter(|t: &DiffTool| t.is_available())
         .map(|t| t.to_string())
         .collect()
-}
-
-#[tauri::command]
-pub fn textdiff_lines(
-    left: String,
-    right: String,
-    left_type: Option<String>,
-    right_type: Option<String>,
-) -> Vec<DiffLine> {
-    diff_lines(
-        &left,
-        &right,
-        left_type.and_then(|value| ContentType::from_str(&value).ok()),
-        right_type.and_then(|value| ContentType::from_str(&value).ok()),
-    )
 }

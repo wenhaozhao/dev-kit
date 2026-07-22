@@ -1,8 +1,8 @@
+use crate::command::formatter::{FormattedValue, parse_formatted_value};
 use crate::command::http_parser::HttpRequest;
 use derive_more::Display;
 use std::fs;
 use std::path::PathBuf;
-use std::sync::Arc;
 use strum::EnumIter;
 
 #[derive(clap::Subcommand)]
@@ -66,7 +66,9 @@ impl super::Command for JsonCommand {
                 beauty,
                 file,
             } => {
-                let content = json.query(query.as_deref(), *query_type, *beauty)?;
+                let json_value = FormattedValue::try_from(json)?;
+                let content =
+                    Json::query_beauty(&json_value, query.as_deref(), *query_type, *beauty)?;
                 if let Some(file) = file {
                     fs::write(file, content)?;
                     println!("write to {}", file.display());
@@ -82,7 +84,15 @@ impl super::Command for JsonCommand {
                 query_type,
                 diff_tool,
             } => {
-                left.diff(right, query.as_deref(), *query_type, diff_tool.map(|it| it))?;
+                let left = FormattedValue::try_from(left)?;
+                let right = FormattedValue::try_from(right)?;
+                Json::diff(
+                    &left,
+                    &right,
+                    query.as_deref(),
+                    *query_type,
+                    diff_tool.map(|it| it),
+                )?;
                 Ok(())
             }
         }
@@ -96,13 +106,14 @@ pub enum Json {
     #[display("{_0}")]
     HttpRequest(HttpRequest),
     #[display("{}", _0.display())]
-    Path(PathBuf),
+    Filepath(PathBuf),
     #[display("{_0}")]
     String(String),
-    #[display("{}", _0.to_string())]
-    JsonValue(Arc<serde_json::Value>),
 }
 
+/// The input kind recognized by the JSON command before the content is resolved.
+/// This is intentionally separate from `serde_json::Value`: source expressions
+/// (commands, files and HTTP requests) are valid JSON parser inputs too.
 #[derive(Debug, Clone, Copy)]
 pub enum QueryType {
     JsonPath,
@@ -128,7 +139,6 @@ pub enum KeyPatternType {
 mod json;
 mod type_;
 pub use json::JsonpathMatch;
-pub use type_::parse_json_or_jsonl;
 
 #[derive(Debug, Copy, Clone, Display, EnumIter)]
 pub enum DiffTool {
