@@ -1,7 +1,7 @@
 use crate::command::http_parser::HttpRequest;
 use crate::command::json::{FormattedValue, Json, KeyPatternType, QueryType};
 use crate::command::read_stdin;
-use anyhow::{Context, anyhow};
+use anyhow::{anyhow, Context};
 use lazy_static::lazy_static;
 use std::fs;
 use std::path::PathBuf;
@@ -52,7 +52,7 @@ impl FromStr for Json {
             return Self::from_str(&string);
         }
         if value.is_empty() {
-            Err(anyhow!("Invalid input"))
+            Ok(Json::String(value.to_string()))
         } else if let Ok(http_request) = HttpRequest::from_str(value) {
             Ok(Json::HttpRequest(http_request))
         } else if let Some(_cmd_path) = CMD_SPLIT_PATTERN

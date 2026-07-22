@@ -183,6 +183,7 @@ async function openRightFile() {
 }
 
 async function queryLeftJson(reload = false) {
+  debugger
   if (!jsonLeftInput.value) {
     jsonLeftOutput.value = "";
     leftType.value = ""

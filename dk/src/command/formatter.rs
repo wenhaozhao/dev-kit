@@ -132,6 +132,9 @@ impl FormattedValue {
 }
 
 pub fn parse_formatted_value(input: &str) -> FormattedValue {
+    if input.is_empty() {
+        return FormattedValue::Text(input.to_string());
+    }
     if let Ok(json) = Json::from_str(input) {
         match json {
             Json::Cmd(input) => {
