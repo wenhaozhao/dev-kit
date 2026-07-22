@@ -1,7 +1,7 @@
 use crate::command::http_parser::HttpRequest;
 use crate::command::json::{FormattedValue, Json, KeyPatternType, QueryType};
 use crate::command::read_stdin;
-use anyhow::{anyhow, Context};
+use anyhow::{Context, anyhow};
 use lazy_static::lazy_static;
 use std::fs;
 use std::path::PathBuf;
@@ -136,5 +136,17 @@ impl FromStr for KeyPatternType {
             "regex" | "r" => Ok(Self::Regex),
             _ => Err(anyhow!("Invalid key pattern type: {}", s)),
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::Json;
+    use std::str::FromStr;
+
+    #[test]
+    fn accepts_empty_json_source_as_string_input() {
+        let value = Json::from_str("").unwrap();
+        assert!(matches!(value, Json::String(input) if input.is_empty()));
     }
 }

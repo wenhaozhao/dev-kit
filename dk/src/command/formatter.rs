@@ -254,6 +254,13 @@ null
     }
 
     #[test]
+    fn treats_empty_input_as_empty_text() {
+        let value = parse_formatted_value("");
+        assert!(matches!(value, FormattedValue::Text(ref text) if text.is_empty()));
+        assert_eq!(value.type_(), FormattedValueType::Text);
+    }
+
+    #[test]
     fn parses_toml_after_json_and_jsonl_fallbacks() {
         let value = parse_formatted_value("name = \"devkit\"");
         assert!(matches!(value, FormattedValue::Toml(_)));
