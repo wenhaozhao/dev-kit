@@ -1,6 +1,6 @@
 mod jetbrains_http;
-use crate::command::formatter::{parse_formatted_value, FormattedValue};
-use anyhow::{anyhow, Context};
+use crate::command::formatter::{FormattedValue, parse_formatted_value};
+use anyhow::{Context, anyhow};
 use derive_more::Display;
 pub use jetbrains_http::*;
 use lazy_static::lazy_static;

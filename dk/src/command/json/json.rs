@@ -22,7 +22,7 @@ impl Json {
         match (kp, qt, query, query.is_empty()) {
             (_, _, _, true) => Ok(vec![]),
             (Some(key_pattern), _, _, false) => {
-                Ok(Self::search_key_actual(&json, &key_pattern, None))
+                Ok(Self::search_key_actual(json, &key_pattern, None))
             }
             (None, Some(QueryType::JsonPath), query, false) => {
                 let (prefix, keyword) = if let Some((prefix, keyword)) = query.rsplit_once(".") {
@@ -32,7 +32,7 @@ impl Json {
                 };
                 match (prefix, keyword, keyword.unwrap_or("").is_empty()) {
                     (prefix, Some(keyword), false) => Ok(Self::search_key_actual(
-                        &json,
+                        json,
                         &KeyPattern::guess(keyword)?,
                         Some(prefix),
                     )),
@@ -61,12 +61,14 @@ impl Json {
         query_type: Option<QueryType>,
     ) -> crate::Result<FormattedValue> {
         match input {
-            FormattedValue::Json(value) => {
-                Ok(FormattedValue::Json(Self::query_inner(value, query, query_type)?))
-            }
+            FormattedValue::Json(value) => Ok(FormattedValue::Json(Self::query_inner(
+                value, query, query_type,
+            )?)),
             FormattedValue::Jsonl(values) => {
                 let value = Value::Array(values.clone());
-                Ok(FormattedValue::Json(Self::query_inner(&value, query, query_type)?))
+                Ok(FormattedValue::Json(Self::query_inner(
+                    &value, query, query_type,
+                )?))
             }
             // FormattedValue::Yaml(value) => {
             //     let value = serde_json::to_value(value.clone())?;
@@ -81,10 +83,13 @@ impl Json {
                 Ok(FormattedValue::Toml(value))
             }
             FormattedValue::Text(value) => {
-                if let Some(query) = query.filter(|it| it.len() > 0) {
-                    let value = value.lines().enumerate().filter(|(_, it)| {
-                        it.contains(query)
-                    }).map(|(n, t)| [format!("line {n}"), t.to_string()]).collect_vec();
+                if let Some(query) = query.filter(|it| !it.is_empty()) {
+                    let value = value
+                        .lines()
+                        .enumerate()
+                        .filter(|(_, it)| it.contains(query))
+                        .map(|(n, t)| [format!("line {n}"), t.to_string()])
+                        .collect_vec();
                     Ok(FormattedValue::Json(serde_json::to_value(value)?))
                 } else {
                     Ok(FormattedValue::Text(value.clone()))
@@ -334,9 +339,7 @@ impl Json {
         query: Option<&str>,
         query_type: Option<QueryType>,
     ) -> crate::Result<String> {
-        let pretty = Self::query_beauty(
-            input, query, query_type, true,
-        )?;
+        let pretty = Self::query_beauty(input, query, query_type, true)?;
         Ok(pretty)
     }
 

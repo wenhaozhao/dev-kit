@@ -1,11 +1,11 @@
+use crate::SharedAppState;
 use crate::components::json::jsonparser::JsonParserTabState;
 use crate::components::jsonparser::JsonParserTab;
-use crate::SharedAppState;
+use dev_kit::command::formatter::FormattedValueType;
 use dev_kit::command::json::{DiffTool, Json, JsonpathMatch, QueryType};
 use itertools::Itertools;
 use serde::Serialize;
 use std::str::FromStr;
-use dev_kit::command::formatter::FormattedValueType;
 
 pub mod jsondiff;
 pub mod jsonparser;
@@ -57,12 +57,12 @@ pub async fn jsonparser_query_json(
         .get_or_parse(&tab_id, &json, reload)
         .await?;
     let arr = Json::query_beauty(
-        &value,
+        value,
         query.as_deref(),
         query_type.and_then(|s| QueryType::from_str(&s).ok()),
         true,
     )
-        .map_err(|e| e.to_string())?;
+    .map_err(|e| e.to_string())?;
     Ok(JsonparserQueryJson {
         data: arr,
         input_type: value.type_(),
@@ -105,7 +105,7 @@ pub async fn jsondiff_query_json(
         query_type.and_then(|s| QueryType::from_str(&s).ok()),
         true,
     )
-        .map_err(|e| e.to_string())?;
+    .map_err(|e| e.to_string())?;
     Ok(JsondiffQueryJson {
         data: arr,
         input_type: value.type_(),
@@ -127,7 +127,7 @@ pub async fn jsondiff_search_json_paths(
 ) -> Result<Vec<JsonpathMatch>, String> {
     let app_state = state.read().await;
     let formatted_value = app_state.jsondiff.get_or_parse(&json, false).await?;
-    let value = formatted_value.try_into().map_err(|err|format!("{err}"))?;
+    let value = formatted_value.try_into().map_err(|err| format!("{err}"))?;
     let query_type = query_type.and_then(|s| QueryType::from_str(&s).ok());
     match Json::search_paths(&value, query.as_deref(), query_type) {
         Ok(arr) => Ok(arr.into_iter().collect_vec()),
@@ -154,9 +154,13 @@ pub async fn jsondiff_diff_json(
         DiffTool::default()
     };
     Json::diff(
-        &left_val, &right_val, query.as_deref(), query_type, Some(tool),
+        &left_val,
+        &right_val,
+        query.as_deref(),
+        query_type,
+        Some(tool),
     )
-        .map_err(|e| e.to_string())?;
+    .map_err(|e| e.to_string())?;
     Ok(())
 }
 

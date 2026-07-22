@@ -1,8 +1,7 @@
 use dev_kit::command::qrcode::generator::QrCodeImageVal;
-use dev_kit::command::qrcode::{generator, OutputType, QrContent, QrEcLevel, QrVersion};
+use dev_kit::command::qrcode::{OutputType, QrContent, QrEcLevel, QrVersion, generator};
 use dev_kit::command::time::{Time, TimeCommand, TimeFormat, TimestampUnit};
 use std::str::FromStr;
-
 
 #[test]
 fn time_and_qrcode_work_offline() {

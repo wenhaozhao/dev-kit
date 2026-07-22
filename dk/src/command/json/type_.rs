@@ -1,7 +1,7 @@
 use crate::command::http_parser::HttpRequest;
 use crate::command::json::{FormattedValue, Json, KeyPatternType, QueryType};
 use crate::command::read_stdin;
-use anyhow::{anyhow, Context};
+use anyhow::{Context, anyhow};
 use lazy_static::lazy_static;
 use std::fs;
 use std::path::PathBuf;
@@ -13,9 +13,7 @@ impl TryFrom<&Json> for FormattedValue {
 
     fn try_from(input: &Json) -> Result<Self, Self::Error> {
         let json = match input {
-            Json::Cmd(input) | Json::String(input) => {
-                super::parse_formatted_value(input)
-            }
+            Json::Cmd(input) | Json::String(input) => super::parse_formatted_value(input),
             Json::Filepath(path) => {
                 let input = fs::read_to_string(path)
                     .with_context(|| format!("read file {} failed", path.display()))?;
@@ -34,7 +32,6 @@ impl FromStr for FormattedValue {
         Ok(super::parse_formatted_value(s))
     }
 }
-
 
 lazy_static! {
     static ref CMD_SPLIT_PATTERN: regex::Regex = {

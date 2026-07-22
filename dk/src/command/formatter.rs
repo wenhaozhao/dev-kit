@@ -51,39 +51,47 @@ impl TryFrom<FormattedValue> for Value {
 impl FormattedValue {
     pub fn convert(self, type_to: FormattedValueType) -> crate::Result<Self> {
         match type_to {
-            FormattedValueType::Json => {
-                match self {
-                    FormattedValue::Json(_) => Ok(self),
-                    FormattedValue::Jsonl(value) => Ok(FormattedValue::Json(Value::Array(value))),
-                    FormattedValue::Toml(value) => Ok(FormattedValue::Json(serde_json::to_value(value)?)),
-                    FormattedValue::Text(value) => Ok(FormattedValue::Json(serde_json::to_value(value)?)),
+            FormattedValueType::Json => match self {
+                FormattedValue::Json(_) => Ok(self),
+                FormattedValue::Jsonl(value) => Ok(FormattedValue::Json(Value::Array(value))),
+                FormattedValue::Toml(value) => {
+                    Ok(FormattedValue::Json(serde_json::to_value(value)?))
                 }
-            }
-            FormattedValueType::Jsonl => {
-                match self {
-                    FormattedValue::Json(value) => if let Value::Array(value) = value {
+                FormattedValue::Text(value) => {
+                    Ok(FormattedValue::Json(serde_json::to_value(value)?))
+                }
+            },
+            FormattedValueType::Jsonl => match self {
+                FormattedValue::Json(value) => {
+                    if let Value::Array(value) = value {
                         Ok(FormattedValue::Jsonl(value))
                     } else {
                         Ok(FormattedValue::Jsonl(vec![value]))
-                    },
-                    FormattedValue::Jsonl(_) => Ok(self),
-                    _ => Ok(self.convert(FormattedValueType::Json)?.convert(FormattedValueType::Jsonl)?),
+                    }
                 }
-            }
-            FormattedValueType::Toml => {
-                match self {
-                    FormattedValue::Json(value) => Ok(FormattedValue::Toml(serde_json::from_value(value)?)),
-                    FormattedValue::Toml(_) => Ok(self),
-                    _ => Ok(self.convert(FormattedValueType::Json)?.convert(FormattedValueType::Toml)?),
+                FormattedValue::Jsonl(_) => Ok(self),
+                _ => Ok(self
+                    .convert(FormattedValueType::Json)?
+                    .convert(FormattedValueType::Jsonl)?),
+            },
+            FormattedValueType::Toml => match self {
+                FormattedValue::Json(value) => {
+                    Ok(FormattedValue::Toml(serde_json::from_value(value)?))
                 }
-            }
-            FormattedValueType::Text => {
-                match self {
-                    FormattedValue::Json(value) => Ok(FormattedValue::Text(serde_json::to_string_pretty(&value)?)),
-                    FormattedValue::Text(_) => Ok(self),
-                    _ => Ok(self.convert(FormattedValueType::Json)?.convert(FormattedValueType::Text)?),
+                FormattedValue::Toml(_) => Ok(self),
+                _ => Ok(self
+                    .convert(FormattedValueType::Json)?
+                    .convert(FormattedValueType::Toml)?),
+            },
+            FormattedValueType::Text => match self {
+                FormattedValue::Json(value) => {
+                    Ok(FormattedValue::Text(serde_json::to_string_pretty(&value)?))
                 }
-            }
+                FormattedValue::Text(_) => Ok(self),
+                _ => Ok(self
+                    .convert(FormattedValueType::Json)?
+                    .convert(FormattedValueType::Text)?),
+            },
         }
     }
 
@@ -143,7 +151,7 @@ pub fn parse_formatted_value(input: &str) -> FormattedValue {
         }
     }
 
-    if let Ok(value) = serde_json::from_str(&input) {
+    if let Ok(value) = serde_json::from_str(input) {
         return FormattedValue::Json(value);
     }
     if let Ok(values) = guess_jsonl(input) {
@@ -175,19 +183,16 @@ fn guess_jsonl(input: &str) -> crate::Result<Vec<Value>> {
 
 #[cfg(test)]
 mod tests {
-    use super::{parse_formatted_value, FormattedValue, FormattedValueType};
+    use super::{FormattedValue, FormattedValueType, parse_formatted_value};
     use serde_json::json;
 
     #[test]
     fn parses_standard_json_without_changing_it() {
         match parse_formatted_value(r#"{"name":"devkit"}"#) {
             FormattedValue::Json(value) => {
-                assert_eq!(
-                    value,
-                    json!({"name": "devkit"})
-                );
+                assert_eq!(value, json!({"name": "devkit"}));
             }
-            _ => panic!("expected Json")
+            _ => panic!("expected Json"),
         }
     }
 
@@ -206,24 +211,27 @@ null
                 assert_eq!(
                     value,
                     json!([
-  {
-    "name": "first"
-  },
-  2,
-  true,
-  null,
-  "last"
-])
+                      {
+                        "name": "first"
+                      },
+                      2,
+                      true,
+                      null,
+                      "last"
+                    ])
                 );
             }
-            _ => panic!("expected Jsonl")
+            _ => panic!("expected Jsonl"),
         }
     }
 
     #[test]
     fn prefers_json_for_pretty_multiline_documents() {
         let input = "{\n  \"items\": [\n    1,\n    2\n  ]\n}";
-        assert!(matches!(parse_formatted_value(input), FormattedValue::Json(_)));
+        assert!(matches!(
+            parse_formatted_value(input),
+            FormattedValue::Json(_)
+        ));
     }
 
     #[test]
@@ -231,7 +239,9 @@ null
         let value = parse_formatted_value("{\"id\":1}\n{\"id\":2}");
         assert_eq!(value.type_(), FormattedValueType::Jsonl);
         let converted = value.convert(FormattedValueType::Json).unwrap();
-        assert!(matches!(converted, FormattedValue::Json(value) if value.as_array().unwrap().len() == 2));
+        assert!(
+            matches!(converted, FormattedValue::Json(value) if value.as_array().unwrap().len() == 2)
+        );
     }
 
     #[test]
