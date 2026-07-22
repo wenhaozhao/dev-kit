@@ -5,6 +5,7 @@ use dev_kit::command::json::{DiffTool, Json, JsonpathMatch, QueryType};
 use itertools::Itertools;
 use serde::Serialize;
 use std::str::FromStr;
+use dev_kit::command::formatter::FormattedValueType;
 
 pub mod jsondiff;
 pub mod jsonparser;
@@ -64,14 +65,14 @@ pub async fn jsonparser_query_json(
         .map_err(|e| e.to_string())?;
     Ok(JsonparserQueryJson {
         data: arr,
-        input_type: value.type_name(),
+        input_type: value.type_(),
     })
 }
 
 #[derive(Serialize)]
 pub struct JsonparserQueryJson {
     data: String,
-    input_type: &'static str,
+    input_type: FormattedValueType,
 }
 
 #[tauri::command]
@@ -107,14 +108,14 @@ pub async fn jsondiff_query_json(
         .map_err(|e| e.to_string())?;
     Ok(JsondiffQueryJson {
         data: arr,
-        input_type: value.type_name(),
+        input_type: value.type_(),
     })
 }
 
 #[derive(Serialize)]
 pub struct JsondiffQueryJson {
     data: String,
-    input_type: &'static str,
+    input_type: FormattedValueType,
 }
 
 #[tauri::command]

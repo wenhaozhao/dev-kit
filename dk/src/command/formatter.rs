@@ -14,6 +14,17 @@ pub enum FormattedValue {
     Text(String),
 }
 
+#[derive(Debug, Clone, Copy, Serialize, Deserialize, Default)]
+#[serde(rename_all = "lowercase")]
+pub enum FormattedValueType {
+    #[default]
+    Json,
+    Jsonl,
+    //Yaml,
+    Toml,
+    Text,
+}
+
 impl TryFrom<&FormattedValue> for Value {
     type Error = anyhow::Error;
 
@@ -38,13 +49,51 @@ impl TryFrom<FormattedValue> for Value {
 }
 
 impl FormattedValue {
-    pub fn type_name(&self) -> &'static str {
+    pub fn convert(self, type_to: FormattedValueType) -> crate::Result<Self> {
+        match type_to {
+            FormattedValueType::Json => {
+                match self {
+                    FormattedValue::Json(_) => Ok(self),
+                    FormattedValue::Jsonl(value) => Ok(FormattedValue::Json(Value::Array(value))),
+                    FormattedValue::Toml(value) => Ok(FormattedValue::Json(serde_json::to_value(value)?)),
+                    FormattedValue::Text(value) => Ok(FormattedValue::Json(serde_json::to_value(value)?)),
+                }
+            }
+            FormattedValueType::Jsonl => {
+                match self {
+                    FormattedValue::Json(value) => if let Value::Array(value) = value {
+                        Ok(FormattedValue::Jsonl(value))
+                    } else {
+                        Ok(FormattedValue::Jsonl(vec![value]))
+                    },
+                    FormattedValue::Jsonl(_) => Ok(self),
+                    _ => Ok(self.convert(FormattedValueType::Json)?.convert(FormattedValueType::Jsonl)?),
+                }
+            }
+            FormattedValueType::Toml => {
+                match self {
+                    FormattedValue::Json(value) => Ok(FormattedValue::Toml(serde_json::from_value(value)?)),
+                    FormattedValue::Toml(_) => Ok(self),
+                    _ => Ok(self.convert(FormattedValueType::Json)?.convert(FormattedValueType::Toml)?),
+                }
+            }
+            FormattedValueType::Text => {
+                match self {
+                    FormattedValue::Json(value) => Ok(FormattedValue::Text(serde_json::to_string_pretty(&value)?)),
+                    FormattedValue::Text(_) => Ok(self),
+                    _ => Ok(self.convert(FormattedValueType::Json)?.convert(FormattedValueType::Text)?),
+                }
+            }
+        }
+    }
+
+    pub fn type_(&self) -> FormattedValueType {
         match self {
-            FormattedValue::Json(_) => "json",
-            FormattedValue::Jsonl(_) => "jsonl",
-            //FormattedValue::Yaml(_) => "yaml",
-            FormattedValue::Toml(_) => "toml",
-            FormattedValue::Text(_) => "text",
+            FormattedValue::Json(_) => FormattedValueType::Json,
+            FormattedValue::Jsonl(_) => FormattedValueType::Jsonl,
+            //FormattedValue::Yaml(_) => FormattedValueType::Yaml,
+            FormattedValue::Toml(_) => FormattedValueType::Toml,
+            FormattedValue::Text(_) => FormattedValueType::Text,
         }
     }
     pub fn to_string_pretty(&self) -> crate::Result<String> {

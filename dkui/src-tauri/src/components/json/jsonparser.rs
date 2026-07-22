@@ -70,7 +70,7 @@ impl JsonParserState {
                 id: id.to_string(),
                 idx: *idx,
                 json_input: {
-                    if let Some(JsonInput(path)) = json_input {
+                    if let Some(InputSource { path, .. }) = json_input {
                         let data = fs::read_to_string(path).await.map_err(|e| e.to_string())?;
                         Some(data)
                     } else {
@@ -78,7 +78,7 @@ impl JsonParserState {
                     }
                 },
                 json_output: {
-                    if let Some(JsonOutput(path)) = json_output {
+                    if let Some(OutputSource { path, .. }) = json_output {
                         let data = fs::read_to_string(path).await.map_err(|e| e.to_string())?;
                         Some(data)
                     } else {
@@ -116,10 +116,10 @@ impl JsonParserState {
                         ..
                     }) = self.tabs.remove(tab_id)
         {
-            if let Some(JsonInput(path)) = json_input {
+            if let Some(InputSource { path, .. }) = json_input {
                 let _ = fs::remove_file(path).await;
             }
-            if let Some(JsonOutput(path)) = json_output {
+            if let Some(OutputSource { path, .. }) = json_output {
                 let _ = fs::remove_file(path).await;
             }
         };
@@ -179,15 +179,15 @@ impl JsonParserState {
             (true, false, true, _, _) => {}
             (true, false, false, true, _) => {
                 let tab = self.tabs.get_mut(tab_id).expect("unexpected none tab");
-                let JsonOutput(path) = tab.json_output.as_ref().expect("unexpected none json_output");
+                let OutputSource { path, ctype } = tab.json_output.as_ref().expect("unexpected none json_output");
                 let json = Json::Filepath(path.to_path_buf());
-                let json_value = FormattedValue::try_from(&json).map_err(|err| format!("{err}"))?;
+                let json_value = FormattedValue::try_from(&json).and_then(|it| it.convert(*ctype)).map_err(|err| format!("{err}"))?;
                 let _ = tab.json_output_cache.replace(json_value);
             }
             (.., json_input_string_sha) => {
                 let tab = self.tabs.get_mut(tab_id).expect("unexpected none tab");
                 // update json-input
-                if let Some(JsonInput(path)) = &tab.json_input {
+                if let Some(InputSource { path }) = &tab.json_input {
                     fs::write(path, json_input_string)
                         .await
                         .map_err(|e| e.to_string())?;
@@ -196,14 +196,16 @@ impl JsonParserState {
                     fs::write(&path, json_input_string)
                         .await
                         .map_err(|e| e.to_string())?;
-                    let _ = tab.json_input.replace(JsonInput(path));
+                    let _ = tab.json_input.replace(InputSource {
+                        path
+                    });
                 }
                 let (formatted_value, pretty) = {
                     let formatted_value = FormattedValue::from_str(json_input_string).map_err(|e| e.to_string())?;
                     let pretty = formatted_value.to_string_pretty().map_err(|e| e.to_string())?;
                     (formatted_value, pretty)
                 };
-                if let Some(JsonOutput(path)) = &tab.json_output {
+                if let Some(OutputSource { path, .. }) = &tab.json_output {
                     fs::write(path, pretty)
                         .await
                         .map_err(|e| e.to_string())?;
@@ -212,7 +214,7 @@ impl JsonParserState {
                     fs::write(&path, pretty)
                         .await
                         .map_err(|e| e.to_string())?;
-                    let _ = &tab.json_output.replace(JsonOutput(path));
+                    let _ = &tab.json_output.replace(OutputSource { path, ctype: formatted_value.type_() });
                 };
                 let _ = tab.json_output_cache.replace(formatted_value);
                 let _ = tab.json_query_cache.take();
@@ -228,7 +230,7 @@ impl JsonParserState {
 impl JsonParserState {
     async fn get_only(tab: &mut JsonParserTabState) -> Result<&FormattedValue, String> {
         if tab.json_output_cache.is_none() {
-            let Some(JsonOutput(path)) = &tab.json_output else {
+            let Some(OutputSource { path, .. }) = &tab.json_output else {
                 return Err("No json-input found".to_string());
             };
             let json_output_string = tokio::fs::read_to_string(path).await.map_err(|err| format!("{err}"))?;
@@ -243,9 +245,9 @@ impl JsonParserState {
 pub struct JsonParserTabState {
     id: String,
     idx: TabIdx,
-    json_input: Option<JsonInput>,
+    json_input: Option<InputSource>,
     json_input_sha: Option<String>,
-    json_output: Option<JsonOutput>,
+    json_output: Option<OutputSource>,
     #[serde(skip)]
     json_output_cache: Option<FormattedValue>,
     json_query: Option<JsonQuery>,
@@ -289,10 +291,92 @@ impl TabIdx {
         Self(self.0.add(1))
     }
 }
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct JsonInput(PathBuf);
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct JsonOutput(PathBuf);
+
+
+use crate::components::jsonparser::output_source::OutputSource;
+use input_source::InputSource;
+
+mod input_source {
+    use serde::de::Error;
+    use serde::{Deserialize, Deserializer, Serialize};
+    use std::path::PathBuf;
+    use std::str::FromStr;
+
+    #[derive(Debug, Clone, Serialize)]
+    pub struct InputSource {
+        pub path: PathBuf,
+    }
+    impl<'de> Deserialize<'de> for InputSource {
+        fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
+        where
+            D: Deserializer<'de>,
+        {
+            let json = serde_json::Value::deserialize(deserializer)?;
+            match json {
+                serde_json::Value::String(string) => {
+                    Ok(Self {
+                        path: PathBuf::from_str(&string).map_err(|err| D::Error::custom(format!("expect filepath but got {string}, err: {err}")))?,
+                    })
+                }
+                serde_json::Value::Object(_) => {
+                    match serde_json::from_value::<InputSource>(json) {
+                        Ok(dst) => Ok(dst),
+                        Err(err) => {
+                            Err(D::Error::custom(format!("deserialize failed, {err}")))
+                        }
+                    }
+                }
+                _ => {
+                    let input = serde_json::to_string(&json).map_err(|err| D::Error::custom(err))?;
+                    Err(D::Error::custom(format!("deserialize failed, got unexpected json: {input}", )))
+                }
+            }
+        }
+    }
+}
+
+mod output_source {
+    use dev_kit::command::formatter::FormattedValueType as CType;
+    use serde::de::Error;
+    use serde::{Deserialize, Deserializer, Serialize};
+    use std::path::PathBuf;
+    use std::str::FromStr;
+
+    #[derive(Debug, Clone, Serialize)]
+    pub struct OutputSource {
+        pub path: PathBuf,
+        pub ctype: CType,
+    }
+    impl<'de> Deserialize<'de> for OutputSource {
+        fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
+        where
+            D: Deserializer<'de>,
+        {
+            let json = serde_json::Value::deserialize(deserializer)?;
+            match json {
+                serde_json::Value::String(string) => {
+                    Ok(Self {
+                        path: PathBuf::from_str(&string).map_err(|err| D::Error::custom(format!("expect filepath but got {string}, err: {err}")))?,
+                        ctype: CType::Json,
+                    })
+                }
+                serde_json::Value::Object(_) => {
+                    match serde_json::from_value::<OutputSource>(json) {
+                        Ok(dst) => Ok(dst),
+                        Err(err) => {
+                            Err(D::Error::custom(format!("deserialize failed, {err}")))
+                        }
+                    }
+                }
+                _ => {
+                    let input = serde_json::to_string(&json).map_err(|err| D::Error::custom(err))?;
+                    Err(D::Error::custom(format!("deserialize failed, got unexpected json: {input}", )))
+                }
+            }
+        }
+    }
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct JsonQuery(String);
 
