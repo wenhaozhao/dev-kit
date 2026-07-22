@@ -374,6 +374,30 @@ mod output_source {
     }
 }
 
+#[cfg(test)]
+mod source_tests {
+    use super::output_source::OutputSource;
+    use dev_kit::command::formatter::FormattedValueType;
+    use std::path::PathBuf;
+
+    #[test]
+    fn deserializes_legacy_output_path_as_json() {
+        let source: OutputSource = serde_json::from_str("\"/tmp/output.json\"").unwrap();
+        assert_eq!(source.path, PathBuf::from("/tmp/output.json"));
+        assert!(matches!(source.ctype, FormattedValueType::Json));
+    }
+
+    #[test]
+    fn deserializes_persisted_output_type_without_recursive_deserialization() {
+        let source: OutputSource = serde_json::from_str(
+            r#"{"path":"/tmp/output.json","ctype":"jsonl"}"#,
+        )
+        .unwrap();
+        assert_eq!(source.path, PathBuf::from("/tmp/output.json"));
+        assert!(matches!(source.ctype, FormattedValueType::Jsonl));
+    }
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct JsonQuery(String);
 

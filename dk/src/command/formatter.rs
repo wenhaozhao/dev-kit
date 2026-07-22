@@ -14,7 +14,7 @@ pub enum FormattedValue {
     Text(String),
 }
 
-#[derive(Debug, Clone, Copy, Serialize, Deserialize, Default)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, Default)]
 #[serde(rename_all = "lowercase")]
 pub enum FormattedValueType {
     #[default]
@@ -175,7 +175,7 @@ fn guess_jsonl(input: &str) -> crate::Result<Vec<Value>> {
 
 #[cfg(test)]
 mod tests {
-    use super::{parse_formatted_value, FormattedValue};
+    use super::{parse_formatted_value, FormattedValue, FormattedValueType};
     use serde_json::json;
 
     #[test]
@@ -218,5 +218,31 @@ null
             }
             _ => panic!("expected Jsonl")
         }
+    }
+
+    #[test]
+    fn prefers_json_for_pretty_multiline_documents() {
+        let input = "{\n  \"items\": [\n    1,\n    2\n  ]\n}";
+        assert!(matches!(parse_formatted_value(input), FormattedValue::Json(_)));
+    }
+
+    #[test]
+    fn converts_jsonl_to_json_array_without_losing_records() {
+        let value = parse_formatted_value("{\"id\":1}\n{\"id\":2}");
+        assert_eq!(value.type_(), FormattedValueType::Jsonl);
+        let converted = value.convert(FormattedValueType::Json).unwrap();
+        assert!(matches!(converted, FormattedValue::Json(value) if value.as_array().unwrap().len() == 2));
+    }
+
+    #[test]
+    fn preserves_plain_text_that_is_not_a_supported_document() {
+        let value = parse_formatted_value("curl --request GET https://example.test");
+        assert!(matches!(value, FormattedValue::Text(_)));
+    }
+
+    #[test]
+    fn parses_toml_after_json_and_jsonl_fallbacks() {
+        let value = parse_formatted_value("name = \"devkit\"");
+        assert!(matches!(value, FormattedValue::Toml(_)));
     }
 }
