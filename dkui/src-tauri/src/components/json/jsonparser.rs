@@ -111,10 +111,10 @@ impl JsonParserState {
 
     pub async fn remove_tab(&mut self, tab_id: &str) -> Result<(), String> {
         if let Some(JsonParserTabState {
-                        json_input,
-                        json_output,
-                        ..
-                    }) = self.tabs.remove(tab_id)
+            json_input,
+            json_output,
+            ..
+        }) = self.tabs.remove(tab_id)
         {
             if let Some(InputSource { path, .. }) = json_input {
                 let _ = fs::remove_file(path).await;
