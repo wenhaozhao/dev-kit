@@ -94,25 +94,13 @@ pub fn parse_formatted_value(input: &str) -> FormattedValue {
         }
     }
 
-    fn guess_jsonl(input: &str) -> crate::Result<Vec<Value>> {
-        let mut values = Vec::new();
-        for (index, line) in input.lines().enumerate() {
-            let line = line.trim();
-            if line.is_empty() {
-                continue;
-            }
-            let value = serde_json::from_str(line)
-                .map_err(|error| anyhow!("Invalid JSONL at line {}: {}", index + 1, error))?;
-            values.push(value);
-        }
-        Ok(values)
-    }
     if let Ok(value) = serde_json::from_str(&input) {
         return FormattedValue::Json(value);
     }
     if let Ok(values) = guess_jsonl(input) {
         return FormattedValue::Jsonl(values);
     }
+
     // if let Ok(value) = serde_yaml::from_str(input) {
     //     return FormattedValue::Yaml(value);
     // }
@@ -122,6 +110,19 @@ pub fn parse_formatted_value(input: &str) -> FormattedValue {
     FormattedValue::Text(input.to_string())
 }
 
+fn guess_jsonl(input: &str) -> crate::Result<Vec<Value>> {
+    let mut values = Vec::new();
+    for (index, line) in input.lines().enumerate() {
+        let line = line.trim();
+        if line.is_empty() {
+            continue;
+        }
+        let value = serde_json::from_str(line)
+            .map_err(|error| anyhow!("Invalid JSONL at line {}: {}", index + 1, error))?;
+        values.push(value);
+    }
+    Ok(values)
+}
 
 #[cfg(test)]
 mod tests {

@@ -307,17 +307,6 @@ async function diffJson() {
   }
 }
 
-async function showInlineDiff() {
-  try {
-    inlineDiffLines.value = await invoke("textdiff_lines", {
-      left: jsonLeftInput.value,
-      right: jsonRightInput.value,
-    });
-  } catch (e) {
-    jsonLeftOutput.value = "Error: " + e;
-  }
-}
-
 async function copyInlineDiff() {
   await navigator.clipboard.writeText(inlineDiffText.value);
 }
@@ -458,7 +447,6 @@ watch(() => props.initialQuery, debounce((newVal) => {
              @focus="showSuggestions = true"
              @keydown="handleKeyDown"/>
       <div class="diff-actions">
-        <button @click="showInlineDiff">Show Diff</button>
         <select v-model="diffTool" v-if="availableDiffTools.length > 0">
           <option v-for="tool in availableDiffTools" :key="tool" :value="tool">
             {{ tool }}
