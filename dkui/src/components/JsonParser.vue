@@ -184,7 +184,6 @@ async function queryJson(reload = false) {
     currentTab.jsonOutput = "";
     currentTab.inputFormat = ""
     currentTab.jsonKeys = [];
-    return;
   }
   currentTab.jsonQuerying = true;
   try {
@@ -340,7 +339,6 @@ onMounted(async () => {
 async function copyToClipboard(e) {
   let text = e.target.innerText;
   if (typeof(text) === 'string') {
-    debugger
     if (text.startsWith('"') && text.endsWith('"')) {
       text = text.slice(1,-1);
     }

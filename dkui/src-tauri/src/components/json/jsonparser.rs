@@ -111,10 +111,10 @@ impl JsonParserState {
 
     pub async fn remove_tab(&mut self, tab_id: &str) -> Result<(), String> {
         if let Some(JsonParserTabState {
-            json_input,
-            json_output,
-            ..
-        }) = self.tabs.remove(tab_id)
+                        json_input,
+                        json_output,
+                        ..
+                    }) = self.tabs.remove(tab_id)
         {
             if let Some(InputSource { path, .. }) = json_input {
                 let _ = fs::remove_file(path).await;
@@ -218,16 +218,18 @@ impl JsonParserState {
                         .map_err(|e| e.to_string())?;
                     (formatted_value, pretty)
                 };
-                if let Some(OutputSource { path, .. }) = &tab.json_output {
-                    fs::write(path, pretty).await.map_err(|e| e.to_string())?;
-                } else {
-                    let path = config_dir.join(format!("output-{}.json", uuid::Uuid::new_v4()));
+                {
+                    let path = if let Some(OutputSource { path, .. }) = &tab.json_output {
+                        path.clone()
+                    } else {
+                        config_dir.join(format!("output-{}.json", uuid::Uuid::new_v4()))
+                    };
                     fs::write(&path, pretty).await.map_err(|e| e.to_string())?;
                     let _ = &tab.json_output.replace(OutputSource {
                         path,
                         ctype: formatted_value.type_(),
                     });
-                };
+                }
                 let _ = tab.json_output_cache.replace(formatted_value);
                 let _ = tab.json_query_cache.take();
                 let _ = tab.json_input_sha.replace(json_input_string_sha);

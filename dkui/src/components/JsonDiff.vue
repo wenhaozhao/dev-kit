@@ -187,7 +187,6 @@ async function queryLeftJson(reload = false) {
     jsonLeftOutput.value = "";
     leftType.value = ""
     jsonKeys.value = [];
-    return;
   }
   jsonLeftQuerying.value = true;
   try {
@@ -214,7 +213,6 @@ async function queryRightJson(reload = false) {
   if (!jsonRightInput.value) {
     jsonRightOutput.value = "";
     rightType.value = ""
-    return;
   }
   jsonRightQuerying.value = true;
   try {
