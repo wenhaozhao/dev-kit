@@ -318,13 +318,11 @@ mod input_source {
                         path: PathBuf::from_str(&string).map_err(|err| D::Error::custom(format!("expect filepath but got {string}, err: {err}")))?,
                     })
                 }
-                serde_json::Value::Object(_) => {
-                    match serde_json::from_value::<InputSource>(json) {
-                        Ok(dst) => Ok(dst),
-                        Err(err) => {
-                            Err(D::Error::custom(format!("deserialize failed, {err}")))
-                        }
-                    }
+                serde_json::Value::Object(mut jsonobj) => {
+                    let path = jsonobj.remove("path").and_then(|it| serde_json::from_value::<PathBuf>(it).ok()).ok_or(D::Error::custom("unexpected path field"))?;
+                    Ok(Self {
+                        path,
+                    })
                 }
                 _ => {
                     let input = serde_json::to_string(&json).map_err(|err| D::Error::custom(err))?;
@@ -360,13 +358,10 @@ mod output_source {
                         ctype: CType::Json,
                     })
                 }
-                serde_json::Value::Object(_) => {
-                    match serde_json::from_value::<OutputSource>(json) {
-                        Ok(dst) => Ok(dst),
-                        Err(err) => {
-                            Err(D::Error::custom(format!("deserialize failed, {err}")))
-                        }
-                    }
+                serde_json::Value::Object(mut jsonobj) => {
+                    let path = jsonobj.remove("path").and_then(|it| serde_json::from_value::<PathBuf>(it).ok()).ok_or(D::Error::custom("unexpected path field"))?;
+                    let ctype = jsonobj.remove("ctype").and_then(|it| serde_json::from_value::<CType>(it).ok()).ok_or(D::Error::custom("unexpected path ctype"))?;
+                    Ok(Self { path, ctype })
                 }
                 _ => {
                     let input = serde_json::to_string(&json).map_err(|err| D::Error::custom(err))?;
