@@ -230,11 +230,13 @@ impl JsonParserState {
 impl JsonParserState {
     async fn get_only(tab: &mut JsonParserTabState) -> Result<&FormattedValue, String> {
         if tab.json_output_cache.is_none() {
-            let Some(OutputSource { path, .. }) = &tab.json_output else {
+            let Some(OutputSource { path, ctype, }) = &tab.json_output else {
                 return Err("No json-input found".to_string());
             };
             let json_output_string = tokio::fs::read_to_string(path).await.map_err(|err| format!("{err}"))?;
-            let json_value = FormattedValue::from_str(&json_output_string).map_err(|err| format!("{err}"))?;
+            let json_value = FormattedValue::from_str(&json_output_string)
+                .and_then(|it| it.convert(*ctype))
+                .map_err(|err| format!("{err}"))?;
             tab.json_output_cache.replace(json_value);
         }
         Ok(tab.json_output_cache.as_ref().expect("unexpected none json_output_cache"))
