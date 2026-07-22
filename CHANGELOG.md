@@ -2,7 +2,16 @@
 
 All notable changes to DevKit are documented in this file.
 
-## [0.2.0] - Unreleased
+## [0.2.1] - Unreleased
+
+### Changed
+
+- Unified kernel-driven formatting for JSON, JSONL, TOML, and plain text.
+- JSON Parser and Content Diff now use the Rust kernel's resolved input type.
+- Added persisted input-type recovery for JSONL and empty-input handling.
+- Deferred inline text diff support to a later release.
+
+## [0.2.0] - Released
 
 ### Added
 

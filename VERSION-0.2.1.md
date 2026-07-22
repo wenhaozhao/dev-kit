@@ -27,7 +27,7 @@
 - 不在 Vue/JavaScript 层调用 `JSON.parse` 或通过换行猜测输入类型。
 - JSONL 的识别属于内核内容解析流程；当前实现先尝试完整 JSON，再尝试 JSONL。
 - 内联对比功能暂不支持，不作为 v0.2.1 的阻塞项。
-- 不修改当前 `v0.2.0` 的版本号或 Release tag。
+- 发布前统一更新 Cargo、npm 与 Tauri 的版本号为 `0.2.1`。
 
 ## 验证命令
 
